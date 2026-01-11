@@ -81,6 +81,8 @@ public class InvShopList extends GUI {
 					try {
 					skullMeta.setOwningPlayer(offlinePlayer); }
 					catch(Exception e) { playerNotFound = true; }
+					if(offlinePlayer.getName() == null)
+						playerNotFound = true;
 					if(Shop.getShopById(id).get().isAdmin())
 						skullMeta.setDisplayName(Messages.ADMIN_SHOP_NUMBER.toString().replaceAll("%id", id.toString()));
 					else if(playerNotFound)

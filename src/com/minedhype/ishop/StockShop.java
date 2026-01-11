@@ -16,7 +16,11 @@ public class StockShop {
 	private final Inventory inventory;
 	private final int pag;
 
-	public StockShop(UUID owner, int pag) { this(owner, Bukkit.createInventory(null, 45, ChatColor.GREEN + Bukkit.getOfflinePlayer(owner).getName()+"'s shop"), pag); }
+	public StockShop(UUID owner, int pag) { 
+		String playerName = Bukkit.getOfflinePlayer(owner).getName();
+		if(playerName == null) playerName = "Unknown";
+		this(owner, Bukkit.createInventory(null, 45, ChatColor.GREEN + playerName + "'s shop"), pag); 
+	}
 
 	public StockShop(UUID owner, Inventory inv, int pag) {
 		this.owner = owner;
