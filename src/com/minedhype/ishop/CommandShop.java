@@ -453,7 +453,7 @@ public class CommandShop implements CommandExecutor {
 					UUID foundPlayerUUID = null;
 					boolean foundPlayer = false;
 					for(OfflinePlayer offlinePlayers : Bukkit.getOfflinePlayers())
-						if(offlinePlayers.getName().equalsIgnoreCase(playerShop)) {
+						if(offlinePlayers.getName() != null && offlinePlayers.getName().equalsIgnoreCase(playerShop)) {
 							foundPlayerUUID = offlinePlayers.getUniqueId();
 							foundPlayer = true;
 							break;
@@ -806,7 +806,7 @@ public class CommandShop implements CommandExecutor {
 					UUID foundPlayerUUID = null;
 					boolean foundPlayer = false;
 					for(OfflinePlayer offlinePlayers : Bukkit.getOfflinePlayers())
-						if(offlinePlayers.getName().equalsIgnoreCase(playerShop)) {
+						if(offlinePlayers.getName() != null && offlinePlayers.getName().equalsIgnoreCase(playerShop)) {
 							foundPlayerUUID = offlinePlayers.getUniqueId();
 							foundPlayer = true;
 							break;
@@ -1276,7 +1276,7 @@ public class CommandShop implements CommandExecutor {
 				UUID foundPlayerUUID = null;
 				boolean foundPlayer = false;
 				for(OfflinePlayer offlinePlayers : Bukkit.getOfflinePlayers())
-					if(offlinePlayers.getName().equalsIgnoreCase(playerName)) {
+					if(offlinePlayers.getName() != null && offlinePlayers.getName().equalsIgnoreCase(playerName)) {
 						foundPlayerUUID = offlinePlayers.getUniqueId();
 						foundPlayer = true;
 						break;
@@ -1317,7 +1317,7 @@ public class CommandShop implements CommandExecutor {
 					UUID foundPlayerUUID = null;
 					boolean foundPlayer = false;
 					for(OfflinePlayer offlinePlayers : Bukkit.getOfflinePlayers())
-						if(offlinePlayers.getName().equalsIgnoreCase(playerName)) {
+						if(offlinePlayers.getName() != null && offlinePlayers.getName().equalsIgnoreCase(playerName)) {
 							foundPlayerUUID = offlinePlayers.getUniqueId();
 							foundPlayer = true;
 							break;
@@ -1564,7 +1564,7 @@ public class CommandShop implements CommandExecutor {
 					UUID foundPlayerUUID = null;
 					boolean foundPlayer = false;
 					for(OfflinePlayer offlinePlayers : Bukkit.getOfflinePlayers())
-						if(offlinePlayers.getName().equalsIgnoreCase(stockOwner)) {
+						if(offlinePlayers.getName() != null && offlinePlayers.getName().equalsIgnoreCase(stockOwner)) {
 							foundPlayerUUID = offlinePlayers.getUniqueId();
 							foundPlayer = true;
 							break;
@@ -1732,7 +1732,7 @@ public class CommandShop implements CommandExecutor {
 					UUID foundPlayerUUID = null;
 					boolean foundPlayer = false;
 					for(OfflinePlayer offlinePlayers : Bukkit.getOfflinePlayers())
-						if(offlinePlayers.getName().equalsIgnoreCase(playerName)) {
+						if(offlinePlayers.getName() != null && offlinePlayers.getName().equalsIgnoreCase(playerName)) {
 							foundPlayerUUID = offlinePlayers.getUniqueId();
 							foundPlayer = true;
 							break;

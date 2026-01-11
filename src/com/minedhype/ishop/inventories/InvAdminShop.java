@@ -35,8 +35,8 @@ public class InvAdminShop extends GUI {
 			return Messages.SHOP_TITLE_ADMIN_SHOP.toString().replaceAll("%id", shopId);
 		String msg = Messages.SHOP_TITLE_NORMAL_SHOP.toString().replaceAll("%id", shopId);
 		OfflinePlayer pl = Bukkit.getOfflinePlayer(shop.getOwner());
-		if(pl == null)
-			return msg.replaceAll("%player%", "<unknown>");
+		if(pl == null || pl.getName() == null)
+			return msg.replaceAll("%player%", "<unknown>").replaceAll("%id", shopId);
 		return msg.replaceAll("%player%", pl.getName()).replaceAll("%id", shopId);
 	}
 
