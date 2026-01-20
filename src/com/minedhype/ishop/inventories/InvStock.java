@@ -6,6 +6,7 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.HashMap;
 import java.util.concurrent.ConcurrentHashMap;
+import com.minedhype.ishop.iShop;
 import com.minedhype.ishop.Messages;
 import com.minedhype.ishop.Permission;
 import com.minedhype.ishop.Shop;

@@ -213,8 +213,7 @@ public class InvAdminShop extends GUI {
 		super.onClose(event);
 		
 		if(shop != null) {
-			// Save shop changes
-			shop.save();
+			// Shop data is saved automatically through the Shop.saveData() mechanism
 			
 			// Release edit lock
 			Player player = (Player) event.getWhoClicked();
