@@ -1228,17 +1228,21 @@ public class Shop {
 	public void deleteShop(boolean removalOfArray) {
 		// Close all open inventories for this shop
 		for(Player onlinePlayer : Bukkit.getOnlinePlayers()) {
-			if(onlinePlayer.getOpenInventory() != null && 
-			   onlinePlayer.getOpenInventory().getTopInventory().getHolder() instanceof InvShop) {
+			if (onlinePlayer.getOpenInventory() != null &&
+			    onlinePlayer.getOpenInventory().getTopInventory().getHolder() instanceof InvShop) {
 				InvShop inv = (InvShop) onlinePlayer.getOpenInventory().getTopInventory().getHolder();
-				// Close if viewing this shop
-				onlinePlayer.closeInventory();
+				// Close only if the player is viewing this specific shop
+				if (inv.shop == this) {
+					onlinePlayer.closeInventory();
+				}
 			}
-			if(onlinePlayer.getOpenInventory() != null && 
-			   onlinePlayer.getOpenInventory().getTopInventory().getHolder() instanceof InvAdminShop) {
+			if (onlinePlayer.getOpenInventory() != null &&
+			    onlinePlayer.getOpenInventory().getTopInventory().getHolder() instanceof InvAdminShop) {
 				InvAdminShop inv = (InvAdminShop) onlinePlayer.getOpenInventory().getTopInventory().getHolder();
-				// Close if editing this shop
-				onlinePlayer.closeInventory();
+				// Close only if the player is editing this specific shop
+				if (inv.shop == this) {
+					onlinePlayer.closeInventory();
+				}
 			}
 		}
 		
