@@ -112,6 +112,15 @@ public class InvShop extends GUI {
 	public void onClick(InventoryClickEvent e) {
 		super.onClick(e);
 		
+		// Verify shop still exists
+		Optional<Shop> shopCheck = Shop.getShopById(shop.shopId());
+		if(!shopCheck.isPresent()) {
+			e.setCancelled(true);
+			e.getWhoClicked().closeInventory();
+			e.getWhoClicked().sendMessage("§cThis shop has been deleted.");
+			return;
+		}
+		
 		if(!iShop.config.getBoolean("enableBulkBuy", true))
 			return;
 		
