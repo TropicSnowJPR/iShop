@@ -2223,31 +2223,8 @@ public class CommandShop implements CommandExecutor {
 		boolean hadStockLock = InvStock.stockAccessLock.remove(shopId) != null;
 		boolean hadEditLock = InvAdminShop.editLocks.remove(shopId) != null;
 		
-		// Close all inventories viewing this shop
-		for(Player onlinePlayer : Bukkit.getOnlinePlayers()) {
-			if(onlinePlayer.getOpenInventory() != null) {
-				org.bukkit.inventory.InventoryHolder holder = onlinePlayer.getOpenInventory().getTopInventory().getHolder();
-				
-				if(holder instanceof InvStock) {
-					InvStock inv = (InvStock) holder;
-					if(inv.shopId == shopId) {
-						onlinePlayer.closeInventory();
-						onlinePlayer.sendMessage(ChatColor.YELLOW + "Shop inventory closed by administrator.");
-					}
-				}
-				
-				if(holder instanceof InvAdminShop) {
-					InvAdminShop inv = (InvAdminShop) holder;
-					if(inv.shop != null && inv.shop.shopId() == shopId) {
-						onlinePlayer.closeInventory();
-						onlinePlayer.sendMessage(ChatColor.YELLOW + "Shop editor closed by administrator.");
-					}
-				}
-			}
-		}
-		
 		if(hadStockLock || hadEditLock) {
-			player.sendMessage(ChatColor.GREEN + "Unlocked shop #" + shopId + " and closed all viewers.");
+			player.sendMessage(ChatColor.GREEN + "Unlocked shop #" + shopId + ".");
 		} else {
 			player.sendMessage(ChatColor.YELLOW + "Shop #" + shopId + " had no active locks.");
 		}
