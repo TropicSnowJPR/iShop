@@ -304,5 +304,37 @@ shopManagerStockOnly: "&cAs a manager, you can only add items to stock, not remo
 shopLeft: "&aYou left shop #%id"
 shopLeaveUsage: "&cUsage: /shop leave <shopId>"
 shopCannotLeaveOwner: "&cOwners cannot leave their shop. Transfer or delete it instead."
+
+# Transaction and analytics
+logTransactions: true
+trackShopAnalytics: true
+
+# Blacklist system
+enableBlacklist: false
+blacklistedItems: []
+
+# Low stock notifications
+notifyLowStock: true
+lowStockThreshold: 16
+
+# Bulk buying
+enableBulkBuy: true
+
+# Messages for new features
+shopTransferUsage: "&cUsage: /shop transfer <shopId> <player>"
+shopTransferred: "&aShop #%id transferred to %player"
+bulkBuyTitle: "Bulk Purchase"
+bulkBuySelect: "&aSelect quantity:"
+blacklistAdded: "&aAdded %item to blacklist"
+blacklistRemoved: "&aRemoved %item from blacklist"
+blacklistList: "&6Blacklisted items: %items"
+blacklistItem: "&cThis item is blacklisted and cannot be traded"
+lowStockNotification: "&6[Shop #%id] Low stock alert: %item has only %amount left!"
+transactionLog: "&7[%time] %buyer bought %bought for %sold"
+shopStatsTitle: "&6=== Shop #%id Statistics ==="
+shopStatsTotalSales: "&aSales: %sales"
+shopStatsTotalTrades: "&aTrades: %trades"
+shopStatsPopularItem: "&aRecent item: %item"
+shopStatsLastSale: "&aLast sale: %time"
 # Do not edit this!
 configVersion: 3.11

@@ -61,6 +61,22 @@ public class InvCreateRow extends GUI {
 					ItemStack in2 = itemIn2.clone();
 					ItemStack out1 = itemOut.clone();
 					ItemStack out2 = itemOut2.clone();
+					
+					if(iShop.config.getBoolean("enableBlacklist", false)) {
+						List<String> blacklist = iShop.config.getStringList("blacklistedItems");
+						for(String blacklistedItem : blacklist) {
+							Material blacklistedMaterial = Material.matchMaterial(blacklistedItem);
+							if(blacklistedMaterial != null) {
+								if(in1.getType().equals(blacklistedMaterial) || in2.getType().equals(blacklistedMaterial) || 
+								   out1.getType().equals(blacklistedMaterial) || out2.getType().equals(blacklistedMaterial)) {
+									p.sendMessage(ChatColor.translateAlternateColorCodes('&', 
+										iShop.config.getString("blacklistItem", "&cThis item is blacklisted and cannot be traded")));
+									return;
+								}
+							}
+						}
+					}
+					
 					if(!p.hasPermission(Permission.SHOP_ADMIN.toString())) {
 						if(preventAllDupeTrades) {
 							if(Shop.hasAnyDuplicateTrades(out1, out2, in1, in2, p.getUniqueId()))
