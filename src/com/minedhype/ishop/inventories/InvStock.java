@@ -8,6 +8,7 @@ import java.util.HashMap;
 import com.minedhype.ishop.Messages;
 import com.minedhype.ishop.Permission;
 import com.minedhype.ishop.Shop;
+import com.minedhype.ishop.ShopMember;
 import com.minedhype.ishop.StockShop;
 import com.minedhype.ishop.gui.GUI;
 import org.bukkit.Material;
@@ -42,6 +43,28 @@ public class InvStock extends GUI {
 	@Override
 	public void onClick(InventoryClickEvent event) {
 		super.onClick(event);
+		
+		Player player = (Player) event.getWhoClicked();
+		
+		// Check if manager is trying to remove items
+		if(event.getRawSlot() < 45 && !player.hasPermission(Permission.SHOP_ADMIN.toString())) {
+			Optional<Shop> shop = Shop.getShopById(this.shopId);
+			if(shop.isPresent()) {
+				ShopMember.MemberRole role = shop.get().getMemberRole(player.getUniqueId());
+				
+				// If manager, only allow adding items, not removing
+				if(role == ShopMember.MemberRole.MANAGER) {
+					// Check if trying to take an item from stock
+					if(event.getCurrentItem() != null && !event.getCurrentItem().getType().equals(Material.AIR)) {
+						// Trying to take item - deny
+						event.setCancelled(true);
+						player.sendMessage(Messages.SHOP_MANAGER_STOCK_ONLY.toString());
+						return;
+					}
+				}
+			}
+		}
+		
 		if(event.getRawSlot() >= 45 && event.getRawSlot() < 54)
 			return;
 		if(event.getRawSlot() >= 54 && !player.hasPermission(Permission.SHOP_ADMIN.toString())) {
