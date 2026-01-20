@@ -26,7 +26,11 @@ public class InvAdminShop extends GUI {
 	public static int permissionMax = iShop.config.getInt("maxStockPages");
 	// Track which player is editing which shop
 	protected static final ConcurrentHashMap<Integer, UUID> editLocks = new ConcurrentHashMap<>();
-	protected Shop shop;
+	private Shop shop;
+
+	public Shop getShop() {
+		return shop;
+	}
 
 	public InvAdminShop(Shop shop, Player player) {
 		super(54, getShopName(shop));

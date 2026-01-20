@@ -27,12 +27,12 @@ import org.bukkit.inventory.meta.BundleMeta;
 
 public class InvStock extends GUI {
 
-	public static final HashMap<Player, Integer> inShopInv = new HashMap<>();
+	public static final ConcurrentHashMap<Player, Integer> inShopInv = new ConcurrentHashMap<>();
 	// Track which player has which shop's stock inventory open
 	protected static final ConcurrentHashMap<Integer, UUID> stockAccessLock = new ConcurrentHashMap<>();
 	private static final List<InvStock> inventories = new ArrayList<>();
 	private final ItemStack airItem = new ItemStack(Material.AIR, 0);
-	protected int shopId;
+	private int shopId;
 	private int pag;
 	private int stockPages;
 	private Player player;
@@ -42,6 +42,10 @@ public class InvStock extends GUI {
 		inventories.add(this);
 		this.shopId = shopId;
 		this.pag = 0;
+	}
+	
+	public int getShopId() {
+		return shopId;
 	}
 	
 	public static InvStock getInvStock(int shopId, Player player) {
@@ -88,7 +92,7 @@ public class InvStock extends GUI {
 	// Keep old method for backwards compatibility but deprecate it
 	@Deprecated
 	public static InvStock getInvStock(int shopId) {
-		return inventories.parallelStream().filter(inv -> inv.shopId == shopId).findFirst().orElse(new InvStock(shopId));
+		throw new UnsupportedOperationException("getInvStock(int) is deprecated and no longer supported. Use getInvStock(int, Player) to ensure stock locking.");
 	}
 	
 	@Override

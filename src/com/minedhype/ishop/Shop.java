@@ -65,8 +65,14 @@ public class Shop {
 	private static final long millisecondsPerDay = 86400000;
 	private final ItemStack airItem = new ItemStack(Material.AIR, 0);
 	private final Map<Player, Long> cdTime = new HashMap<>();
-	// Trade row locks - one trade at a time per row
-	private final ConcurrentHashMap<Integer, AtomicBoolean> rowLocks = new ConcurrentHashMap<>();
+	// Trade row locks - one trade at a time per row (fixed array for 5 rows)
+	private final AtomicBoolean[] rowLocks = new AtomicBoolean[] {
+		new AtomicBoolean(false),
+		new AtomicBoolean(false),
+		new AtomicBoolean(false),
+		new AtomicBoolean(false),
+		new AtomicBoolean(false)
+	};
 	private final UUID owner;
 	private final Location location;
 	private final RowStore[] rows;
@@ -981,8 +987,13 @@ public class Shop {
 		boolean lockingEnabled = iShop.config.getBoolean("enableTradeLocking", true);
 		
 		if(lockingEnabled) {
-			// Get or create lock for this specific row
-			AtomicBoolean rowLock = rowLocks.computeIfAbsent(index, k -> new AtomicBoolean(false));
+			// Validate row index
+			if(index < 0 || index >= rowLocks.length) {
+				return;
+			}
+			
+			// Get lock for this specific row
+			AtomicBoolean rowLock = rowLocks[index];
 			
 			// Try to acquire lock (non-blocking)
 			if(!rowLock.compareAndSet(false, true)) {
