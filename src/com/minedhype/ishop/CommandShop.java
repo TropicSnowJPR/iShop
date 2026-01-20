@@ -2000,27 +2000,6 @@ public class CommandShop implements CommandExecutor {
 	}
 	
 	private void transferShop(Player player, String[] args) {
-		if(!player.hasPermission(Permission.SHOP_ADMIN.toString())) {
-			int shopId;
-			try {
-				shopId = Integer.parseInt(args[1]);
-			} catch(Exception e) {
-				player.sendMessage(ChatColor.translateAlternateColorCodes('&', iShop.config.getString("shopTransferUsage")));
-				return;
-			}
-			
-			Optional<Shop> shop = Shop.getShopById(shopId);
-			if(!shop.isPresent()) {
-				player.sendMessage(Messages.SHOP_NOT_FOUND.toString());
-				return;
-			}
-			
-			if(!shop.get().isOwner(player.getUniqueId())) {
-				player.sendMessage(Messages.SHOP_NO_SELF.toString());
-				return;
-			}
-		}
-		
 		if(args.length < 3) {
 			player.sendMessage(ChatColor.translateAlternateColorCodes('&', iShop.config.getString("shopTransferUsage")));
 			return;
@@ -2037,6 +2016,11 @@ public class CommandShop implements CommandExecutor {
 		Optional<Shop> shop = Shop.getShopById(shopId);
 		if(!shop.isPresent()) {
 			player.sendMessage(Messages.SHOP_NOT_FOUND.toString());
+			return;
+		}
+		
+		if(!player.hasPermission(Permission.SHOP_ADMIN.toString()) && !shop.get().isOwner(player.getUniqueId())) {
+			player.sendMessage(Messages.SHOP_NO_SELF.toString());
 			return;
 		}
 		
@@ -2123,11 +2107,14 @@ public class CommandShop implements CommandExecutor {
 			if(!blacklist.contains(item)) {
 				blacklist.add(item);
 				iShop.config.set("blacklistedItems", blacklist);
-				try {
-					iShop.config.save(iShop.getPlugin().getDataFolder() + "/config.yml");
-				} catch(Exception e) {
-					e.printStackTrace();
-				}
+				Bukkit.getScheduler().runTaskAsynchronously(iShop.getPlugin(), () -> {
+					try {
+						iShop.config.save(iShop.getPlugin().getDataFolder() + "/config.yml");
+					} catch(Exception e) {
+						player.sendMessage(ChatColor.RED + "Failed to save blacklist to config!");
+						e.printStackTrace();
+					}
+				});
 				player.sendMessage(ChatColor.translateAlternateColorCodes('&', 
 					iShop.config.getString("blacklistAdded").replaceAll("%item", item)));
 			}
@@ -2137,11 +2124,14 @@ public class CommandShop implements CommandExecutor {
 			if(blacklist.contains(item)) {
 				blacklist.remove(item);
 				iShop.config.set("blacklistedItems", blacklist);
-				try {
-					iShop.config.save(iShop.getPlugin().getDataFolder() + "/config.yml");
-				} catch(Exception e) {
-					e.printStackTrace();
-				}
+				Bukkit.getScheduler().runTaskAsynchronously(iShop.getPlugin(), () -> {
+					try {
+						iShop.config.save(iShop.getPlugin().getDataFolder() + "/config.yml");
+					} catch(Exception e) {
+						player.sendMessage(ChatColor.RED + "Failed to save blacklist to config!");
+						e.printStackTrace();
+					}
+				});
 				player.sendMessage(ChatColor.translateAlternateColorCodes('&', 
 					iShop.config.getString("blacklistRemoved").replaceAll("%item", item)));
 			}

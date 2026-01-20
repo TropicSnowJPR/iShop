@@ -57,6 +57,8 @@ public class ShopAnalytics {
 		PreparedStatement stmt = null;
 		
 		try {
+			// Note: This uses SQLite-specific ON CONFLICT syntax
+			// The plugin is designed for SQLite as per existing database implementation
 			stmt = iShop.getConnection().prepareStatement(
 				"INSERT INTO shop_analytics (shop_id, total_sales, total_trades, last_sale_timestamp, popular_item) " +
 				"VALUES (?, ?, 1, ?, ?) " +

@@ -80,20 +80,22 @@ public class InvBulkBuy extends GUI {
 			player.sendMessage(ChatColor.RED + "This trade no longer exists!");
 			return;
 		}
-
+		
+		RowStore rowData = row.get();
+		
 		for(int i = 0; i < multiplier; i++) {
-			if(row.get().getItemIn().isSimilar(row.get().getItemIn2()) && !Utils.hasDoubleItemStock(player, row.get().getItemIn(), row.get().getItemIn2())) {
+			if(rowData.getItemIn().isSimilar(rowData.getItemIn2()) && !Utils.hasDoubleItemStock(player, rowData.getItemIn(), rowData.getItemIn2())) {
 				player.sendMessage(ChatColor.RED + "You don't have enough items to complete all trades! Completed " + i + " trades.");
 				return;
-			} else if(!Utils.hasStock(player, row.get().getItemIn()) || !Utils.hasStock(player, row.get().getItemIn2())) {
+			} else if(!Utils.hasStock(player, rowData.getItemIn()) || !Utils.hasStock(player, rowData.getItemIn2())) {
 				player.sendMessage(ChatColor.RED + "You don't have enough items to complete all trades! Completed " + i + " trades.");
 				return;
 			}
 
-			if(row.get().getItemOut().isSimilar(row.get().getItemOut2()) && !Utils.hasDoubleItemStock(shop, row.get().getItemOut(), row.get().getItemOut2())) {
+			if(rowData.getItemOut().isSimilar(rowData.getItemOut2()) && !Utils.hasDoubleItemStock(shop, rowData.getItemOut(), rowData.getItemOut2())) {
 				player.sendMessage(ChatColor.RED + "Shop ran out of stock! Completed " + i + " trades.");
 				return;
-			} else if(!Utils.hasStock(shop, row.get().getItemOut()) || !Utils.hasStock(shop, row.get().getItemOut2())) {
+			} else if(!Utils.hasStock(shop, rowData.getItemOut()) || !Utils.hasStock(shop, rowData.getItemOut2())) {
 				player.sendMessage(ChatColor.RED + "Shop ran out of stock! Completed " + i + " trades.");
 				return;
 			}
@@ -103,7 +105,7 @@ public class InvBulkBuy extends GUI {
 				if(item == null || item.getType().isAir())
 					emptySlots++;
 
-			if(!row.get().getItemOut().getType().isAir() && !row.get().getItemOut2().getType().isAir()) {
+			if(!rowData.getItemOut().getType().isAir() && !rowData.getItemOut2().getType().isAir()) {
 				if(emptySlots <= 1) {
 					player.sendMessage(ChatColor.RED + "Your inventory is full! Completed " + i + " trades.");
 					return;
@@ -115,15 +117,10 @@ public class InvBulkBuy extends GUI {
 				}
 			}
 
-			Bukkit.getScheduler().runTask(iShop.getPlugin(), () -> shop.buy(player, rowIndex));
-			
-			try {
-				Thread.sleep(50);
-			} catch (InterruptedException e) {
-				e.printStackTrace();
-			}
+			final int tradeIndex = i;
+			Bukkit.getScheduler().runTaskLater(iShop.getPlugin(), () -> shop.buy(player, rowIndex), tradeIndex * 3L);
 		}
 		
-		player.sendMessage(ChatColor.GREEN + "Successfully completed " + multiplier + " trades!");
+		player.sendMessage(ChatColor.GREEN + "Successfully initiated " + multiplier + " trades!");
 	}
 }

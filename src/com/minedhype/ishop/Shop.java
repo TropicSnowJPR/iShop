@@ -1110,15 +1110,25 @@ public class Shop {
 		Bukkit.getScheduler().runTaskAsynchronously(iShop.getPlugin(), () -> {
 			sendShopMessages(i1, i2, o1, o2, iA1, iA2, oA1, oA2, this.owner, shoppingPlayer, this.admin, rowBroadcast);
 			
-			String soldItems = (o1.equals("empty x 0") ? "" : o1) + (o2.equals("empty x 0") ? "" : ", " + o2);
-			soldItems = soldItems.replaceFirst("^, ", "");
-			String boughtItems = (i1.equals("empty x 0") ? "" : i1) + (i2.equals("empty x 0") ? "" : ", " + i2);
-			boughtItems = boughtItems.replaceFirst("^, ", "");
+			String soldItems = formatItemList(o1, o2);
+			String boughtItems = formatItemList(i1, i2);
 			int totalSoldAmount = oA1 + oA2;
 			
 			ShopTransaction.logTransaction(this.idTienda, shoppingPlayer, soldItems, totalSoldAmount, boughtItems, iA1 + iA2);
 			ShopAnalytics.updateAnalytics(this.idTienda, soldItems, totalSoldAmount);
 		});
+	}
+	
+	private String formatItemList(String item1, String item2) {
+		StringBuilder result = new StringBuilder();
+		if(!item1.equals("empty x 0"))
+			result.append(item1);
+		if(!item2.equals("empty x 0")) {
+			if(result.length() > 0)
+				result.append(", ");
+			result.append(item2);
+		}
+		return result.toString();
 	}
 
 	public boolean hasExpired() {
@@ -1667,13 +1677,14 @@ public class Shop {
 	
 	public void transferOwnership(UUID newOwnerUuid) {
 		PreparedStatement stmt = null;
+		UUID oldOwnerUuid = this.owner;
 		try {
 			stmt = iShop.getConnection().prepareStatement("UPDATE zooMercaTiendas SET owner = ? WHERE id = ?;");
 			stmt.setString(1, newOwnerUuid.toString());
 			stmt.setInt(2, this.idTienda);
 			stmt.executeUpdate();
 			
-			ShopMember oldOwnerMember = new ShopMember(this.idTienda, this.owner, ShopMember.MemberRole.CO_OWNER, System.currentTimeMillis());
+			ShopMember oldOwnerMember = new ShopMember(this.idTienda, oldOwnerUuid, ShopMember.MemberRole.CO_OWNER, System.currentTimeMillis());
 			oldOwnerMember.save();
 			members.add(oldOwnerMember);
 			
