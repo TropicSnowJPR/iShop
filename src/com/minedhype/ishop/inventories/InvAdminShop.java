@@ -41,6 +41,9 @@ public class InvAdminShop extends GUI {
 	}
 
 	private void updateItems(Player player) {
+		// Check if player can edit trades
+		boolean canEdit = shop.canEditTrades(player.getUniqueId()) || player.hasPermission(Permission.SHOP_ADMIN.toString());
+		
 		for(int x=0; x<9; x++) {
 			for(int y=0; y<6; y++) {
 				if(x == 1) {
@@ -78,23 +81,28 @@ public class InvAdminShop extends GUI {
 				} else if(x == 7 && y > 0) {
 					Optional<RowStore> row = shop.getRow(y-1);
 					final int index = y-1;
-					if(row.isPresent()) {
-						placeItem(y*9+x, GUI.createItem(Material.TNT, ChatColor.BOLD+ Messages.SHOP_TITLE_DELETE.toString()), p -> {
-							shop.delete(index);
-							InvAdminShop inv = new InvAdminShop(shop, p.getPlayer());
-							inv.open(p);
-						});
+					if(canEdit) {
+						if(row.isPresent()) {
+							placeItem(y*9+x, GUI.createItem(Material.TNT, ChatColor.BOLD+ Messages.SHOP_TITLE_DELETE.toString()), p -> {
+								shop.delete(index);
+								InvAdminShop inv = new InvAdminShop(shop, p.getPlayer());
+								inv.open(p);
+							});
+						} else {
+							placeItem(y*9+x, GUI.createItem(Material.LIME_DYE, ChatColor.BOLD+ Messages.SHOP_TITLE_CREATE.toString()), p -> {
+								InvCreateRow inv = new InvCreateRow(shop, index);
+								inv.open(p);
+							});
+						}
 					} else {
-						placeItem(y*9+x, GUI.createItem(Material.LIME_DYE, ChatColor.BOLD+ Messages.SHOP_TITLE_CREATE.toString()), p -> {
-							InvCreateRow inv = new InvCreateRow(shop, index);
-							inv.open(p);
-						});
+						// Read-only mode - show gray glass pane
+						placeItem(y*9+x, GUI.createItem(Material.GRAY_STAINED_GLASS_PANE, ""));
 					}
 				} else if(x == 7 && y == 0) {
-					if(stockGUIShop && !shop.isAdmin() && shop.getOwner().equals(player.getUniqueId())) {
+					if(stockGUIShop && !shop.isAdmin() && shop.canManageStock(player.getUniqueId())) {
 						placeItem(y * 9 + x, GUI.createItem(Material.CHEST, Messages.SHOP_TITLE_STOCK.toString()), p -> {
 							p.closeInventory();
-							InvStock inv = InvStock.getInvStock(player.getUniqueId());
+							InvStock inv = InvStock.getInvStock(shop.shopId());
 							int maxStockPages = maxPages;
 							if(usePerms) {
 								String permPrefix = Permission.SHOP_STOCK_PREFIX.toString();
