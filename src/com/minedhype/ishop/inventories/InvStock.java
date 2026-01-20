@@ -5,12 +5,15 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.HashMap;
+import java.util.concurrent.ConcurrentHashMap;
 import com.minedhype.ishop.Messages;
 import com.minedhype.ishop.Permission;
 import com.minedhype.ishop.Shop;
 import com.minedhype.ishop.ShopMember;
 import com.minedhype.ishop.StockShop;
 import com.minedhype.ishop.gui.GUI;
+import org.bukkit.Bukkit;
+import org.bukkit.ChatColor;
 import org.bukkit.Material;
 import org.bukkit.block.ShulkerBox;
 import org.bukkit.entity.Player;
@@ -24,9 +27,11 @@ import org.bukkit.inventory.meta.BundleMeta;
 public class InvStock extends GUI {
 
 	public static final HashMap<Player, Integer> inShopInv = new HashMap<>();
+	// Track which player has which shop's stock inventory open
+	protected static final ConcurrentHashMap<Integer, UUID> stockAccessLock = new ConcurrentHashMap<>();
 	private static final List<InvStock> inventories = new ArrayList<>();
 	private final ItemStack airItem = new ItemStack(Material.AIR, 0);
-	private final int shopId;
+	protected int shopId;
 	private int pag;
 	private int stockPages;
 	private Player player;
@@ -38,7 +43,45 @@ public class InvStock extends GUI {
 		this.pag = 0;
 	}
 	
-	public static InvStock getInvStock(int shopId) { return inventories.parallelStream().filter(inv -> inv.shopId == shopId).findFirst().orElse(new InvStock(shopId)); }
+	public static InvStock getInvStock(int shopId, Player player) {
+		// Check if stock locking is enabled
+		boolean lockingEnabled = iShop.config.getBoolean("enableStockLocking", true);
+		
+		if(lockingEnabled) {
+			// Check if another player has this shop's stock open
+			UUID currentUser = stockAccessLock.get(shopId);
+			
+			if(currentUser != null) {
+				// Check if it's a different player
+				if(!currentUser.equals(player.getUniqueId())) {
+					// Check if that player is still online and has it open
+					Player otherPlayer = Bukkit.getPlayer(currentUser);
+					
+					if(otherPlayer != null && otherPlayer.isOnline()) {
+						// Stock inventory is actually in use
+						if(iShop.config.getBoolean("showLockMessages", true)) {
+							player.sendMessage(ChatColor.RED + otherPlayer.getName() + " is currently managing this shop's stock inventory.");
+						}
+						return null;
+					} else {
+						// Player logged out or closed inventory, clear stale lock
+						stockAccessLock.remove(shopId);
+					}
+				}
+			}
+			
+			// Acquire lock for this player
+			stockAccessLock.put(shopId, player.getUniqueId());
+		}
+		
+		return inventories.parallelStream().filter(inv -> inv.shopId == shopId).findFirst().orElse(new InvStock(shopId));
+	}
+	
+	// Keep old method for backwards compatibility but deprecate it
+	@Deprecated
+	public static InvStock getInvStock(int shopId) {
+		return inventories.parallelStream().filter(inv -> inv.shopId == shopId).findFirst().orElse(new InvStock(shopId));
+	}
 	
 	@Override
 	public void onClick(InventoryClickEvent event) {
@@ -189,8 +232,11 @@ public class InvStock extends GUI {
 			}
 		});
 		
-		// Remove from tracking map
+		// Release stock access lock
 		Player player = (Player) event.getWhoClicked();
+		stockAccessLock.remove(this.shopId, player.getUniqueId());
+		
+		// Remove from tracking map
 		inShopInv.remove(player);
 	}
 	

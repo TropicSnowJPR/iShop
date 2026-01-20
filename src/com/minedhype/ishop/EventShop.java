@@ -222,11 +222,17 @@ public class EventShop implements Listener {
 					event.getPlayer().sendMessage(Messages.SHOP_BUSY.toString());
 					return;
 				} else { InvStock.inShopInv.put(event.getPlayer(), shopId); }
-				InvStock inv = InvStock.getInvStock(shopId);
-				int maxStockPages = nearestShop.get().getMaxStockPages();
-				inv.setMaxPages(maxStockPages);
-				inv.setPag(0);
-				inv.open(event.getPlayer());
+				InvStock inv = InvStock.getInvStock(shopId, event.getPlayer());
+				if(inv != null) {
+					int maxStockPages = nearestShop.get().getMaxStockPages();
+					inv.setMaxPages(maxStockPages);
+					inv.setPag(0);
+					inv.open(event.getPlayer());
+				} else {
+					// Lock message already sent to player
+					InvStock.inShopInv.remove(event.getPlayer());
+					return;
+				}
 			}
 			return;
 		}
@@ -270,11 +276,17 @@ public class EventShop implements Listener {
 							event.getPlayer().sendMessage(Messages.SHOP_BUSY.toString());
 							return;
 						} else { InvStock.inShopInv.put(event.getPlayer(), shopId); }
-						InvStock inv = InvStock.getInvStock(shopId);
-						int maxStockPages = nearestShop.get().getMaxStockPages();
-						inv.setMaxPages(maxStockPages);
-						inv.setPag(0);
-						inv.open(event.getPlayer());
+						InvStock inv = InvStock.getInvStock(shopId, event.getPlayer());
+						if(inv != null) {
+							int maxStockPages = nearestShop.get().getMaxStockPages();
+							inv.setMaxPages(maxStockPages);
+							inv.setPag(0);
+							inv.open(event.getPlayer());
+						} else {
+							// Lock message already sent to player
+							InvStock.inShopInv.remove(event.getPlayer());
+							return;
+						}
 					}
 					return;
 				}
@@ -409,8 +421,13 @@ public class EventShop implements Listener {
 		// Clean up stock inventory tracking
 		InvStock.inShopInv.remove(player);
 		
-		// Clean up any other player-specific data
-		// This prevents memory leaks when players disconnect
+		// Clean up stock access locks
+		InvStock.stockAccessLock.entrySet().removeIf(entry -> entry.getValue().equals(playerUuid));
+		
+		// Clean up shop edit locks
+		InvAdminShop.editLocks.entrySet().removeIf(entry -> entry.getValue().equals(playerUuid));
+		
+		// Trade row locks auto-release via AtomicBoolean in finally blocks
 	}
 
 	private boolean checkShopLoc(Location location) {
