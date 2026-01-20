@@ -191,7 +191,7 @@ public class InvStock extends GUI {
 		
 		// Remove from tracking map
 		Player player = (Player) event.getWhoClicked();
-		inShopInv.remove(player.getUniqueId());
+		inShopInv.remove(player);
 	}
 	
 	public void setPag(int pag) {
