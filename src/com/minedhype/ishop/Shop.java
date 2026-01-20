@@ -1684,6 +1684,8 @@ public class Shop {
 			stmt.setInt(2, this.idTienda);
 			stmt.executeUpdate();
 			
+			this.owner = newOwnerUuid;
+			
 			ShopMember oldOwnerMember = new ShopMember(this.idTienda, oldOwnerUuid, ShopMember.MemberRole.CO_OWNER, System.currentTimeMillis());
 			oldOwnerMember.save();
 			members.add(oldOwnerMember);

@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.Optional;
 
 public class InvBulkBuy extends GUI {
+	private static final long TRADE_DELAY_TICKS = 3L;
 	private final Shop shop;
 	private final int rowIndex;
 
@@ -118,7 +119,7 @@ public class InvBulkBuy extends GUI {
 			}
 
 			final int tradeIndex = i;
-			Bukkit.getScheduler().runTaskLater(iShop.getPlugin(), () -> shop.buy(player, rowIndex), tradeIndex * 3L);
+			Bukkit.getScheduler().runTaskLater(iShop.getPlugin(), () -> shop.buy(player, rowIndex), tradeIndex * TRADE_DELAY_TICKS);
 		}
 		
 		player.sendMessage(ChatColor.GREEN + "Successfully initiated " + multiplier + " trades!");

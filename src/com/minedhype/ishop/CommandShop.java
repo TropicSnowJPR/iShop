@@ -2109,7 +2109,7 @@ public class CommandShop implements CommandExecutor {
 				iShop.config.set("blacklistedItems", blacklist);
 				Bukkit.getScheduler().runTaskAsynchronously(iShop.getPlugin(), () -> {
 					try {
-						iShop.config.save(iShop.getPlugin().getDataFolder() + "/config.yml");
+						iShop.config.save(new java.io.File(iShop.getPlugin().getDataFolder(), "config.yml"));
 					} catch(Exception e) {
 						player.sendMessage(ChatColor.RED + "Failed to save blacklist to config!");
 						e.printStackTrace();
@@ -2126,7 +2126,7 @@ public class CommandShop implements CommandExecutor {
 				iShop.config.set("blacklistedItems", blacklist);
 				Bukkit.getScheduler().runTaskAsynchronously(iShop.getPlugin(), () -> {
 					try {
-						iShop.config.save(iShop.getPlugin().getDataFolder() + "/config.yml");
+						iShop.config.save(new java.io.File(iShop.getPlugin().getDataFolder(), "config.yml"));
 					} catch(Exception e) {
 						player.sendMessage(ChatColor.RED + "Failed to save blacklist to config!");
 						e.printStackTrace();
