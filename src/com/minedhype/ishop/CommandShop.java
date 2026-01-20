@@ -2102,39 +2102,43 @@ public class CommandShop implements CommandExecutor {
 		}
 		
 		if(args[1].equalsIgnoreCase("add") && args.length >= 3) {
-			String item = args[2].toUpperCase();
-			List<String> blacklist = iShop.config.getStringList("blacklistedItems");
-			if(!blacklist.contains(item)) {
-				blacklist.add(item);
-				iShop.config.set("blacklistedItems", blacklist);
-				Bukkit.getScheduler().runTaskAsynchronously(iShop.getPlugin(), () -> {
-					try {
-						iShop.config.save(new java.io.File(iShop.getPlugin().getDataFolder(), "config.yml"));
-					} catch(Exception e) {
-						player.sendMessage(ChatColor.RED + "Failed to save blacklist to config!");
-						e.printStackTrace();
+			final String item = args[2].toUpperCase();
+			Bukkit.getScheduler().runTaskAsynchronously(iShop.getPlugin(), () -> {
+				synchronized(iShop.config) {
+					List<String> blacklist = iShop.config.getStringList("blacklistedItems");
+					if(!blacklist.contains(item)) {
+						blacklist.add(item);
+						iShop.config.set("blacklistedItems", blacklist);
+						try {
+							iShop.config.save(new java.io.File(iShop.getPlugin().getDataFolder(), "config.yml"));
+							player.sendMessage(ChatColor.translateAlternateColorCodes('&', 
+								iShop.config.getString("blacklistAdded").replaceAll("%item", item)));
+						} catch(Exception e) {
+							player.sendMessage(ChatColor.RED + "Failed to save blacklist to config!");
+							e.printStackTrace();
+						}
 					}
-				});
-				player.sendMessage(ChatColor.translateAlternateColorCodes('&', 
-					iShop.config.getString("blacklistAdded").replaceAll("%item", item)));
-			}
+				}
+			});
 		} else if(args[1].equalsIgnoreCase("remove") && args.length >= 3) {
-			String item = args[2].toUpperCase();
-			List<String> blacklist = iShop.config.getStringList("blacklistedItems");
-			if(blacklist.contains(item)) {
-				blacklist.remove(item);
-				iShop.config.set("blacklistedItems", blacklist);
-				Bukkit.getScheduler().runTaskAsynchronously(iShop.getPlugin(), () -> {
-					try {
-						iShop.config.save(new java.io.File(iShop.getPlugin().getDataFolder(), "config.yml"));
-					} catch(Exception e) {
-						player.sendMessage(ChatColor.RED + "Failed to save blacklist to config!");
-						e.printStackTrace();
+			final String item = args[2].toUpperCase();
+			Bukkit.getScheduler().runTaskAsynchronously(iShop.getPlugin(), () -> {
+				synchronized(iShop.config) {
+					List<String> blacklist = iShop.config.getStringList("blacklistedItems");
+					if(blacklist.contains(item)) {
+						blacklist.remove(item);
+						iShop.config.set("blacklistedItems", blacklist);
+						try {
+							iShop.config.save(new java.io.File(iShop.getPlugin().getDataFolder(), "config.yml"));
+							player.sendMessage(ChatColor.translateAlternateColorCodes('&', 
+								iShop.config.getString("blacklistRemoved").replaceAll("%item", item)));
+						} catch(Exception e) {
+							player.sendMessage(ChatColor.RED + "Failed to save blacklist to config!");
+							e.printStackTrace();
+						}
 					}
-				});
-				player.sendMessage(ChatColor.translateAlternateColorCodes('&', 
-					iShop.config.getString("blacklistRemoved").replaceAll("%item", item)));
-			}
+				}
+			});
 		} else if(args[1].equalsIgnoreCase("list")) {
 			List<String> blacklist = iShop.config.getStringList("blacklistedItems");
 			String items = blacklist.isEmpty() ? "None" : String.join(", ", blacklist);

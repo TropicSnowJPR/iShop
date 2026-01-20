@@ -57,6 +57,7 @@ public class Shop {
 	public static int maxDays = iShop.config.getInt("maxInactiveDays");
 	public static final ConcurrentHashMap<Integer, UUID> shopList = new ConcurrentHashMap<>();
 	public static final ConcurrentHashMap<UUID, ArrayList<String>> shopMessages = new ConcurrentHashMap<>();
+	private static final String EMPTY_ITEM_STRING = "empty x 0";  // Constant for empty item representation
 	private static boolean exemptListInactive;
 	private static final List<Shop> shops = new ArrayList<>();
 	private static final Plugin plugin = Bukkit.getPluginManager().getPlugin("iShop");
@@ -1121,9 +1122,9 @@ public class Shop {
 	
 	private String formatItemList(String item1, String item2) {
 		StringBuilder result = new StringBuilder();
-		if(!item1.equals("empty x 0"))
+		if(!item1.equals(EMPTY_ITEM_STRING))
 			result.append(item1);
-		if(!item2.equals("empty x 0")) {
+		if(!item2.equals(EMPTY_ITEM_STRING)) {
 			if(result.length() > 0)
 				result.append(", ");
 			result.append(item2);

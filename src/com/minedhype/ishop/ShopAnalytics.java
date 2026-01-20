@@ -11,7 +11,7 @@ public class ShopAnalytics {
 	private int totalSales;
 	private int totalTrades;
 	private long lastSaleTimestamp;
-	private String popularItem;
+	private String recentItem;  // Most recently sold item, not most popular
 
 	public ShopAnalytics(int shopId) {
 		this.shopId = shopId;
@@ -31,12 +31,12 @@ public class ShopAnalytics {
 				this.totalSales = rs.getInt("total_sales");
 				this.totalTrades = rs.getInt("total_trades");
 				this.lastSaleTimestamp = rs.getLong("last_sale_timestamp");
-				this.popularItem = rs.getString("popular_item");
+				this.recentItem = rs.getString("popular_item");  // Column name kept for compatibility
 			} else {
 				this.totalSales = 0;
 				this.totalTrades = 0;
 				this.lastSaleTimestamp = 0;
-				this.popularItem = "None";
+				this.recentItem = "None";
 			}
 		} catch (Exception e) {
 			e.printStackTrace();
@@ -104,8 +104,8 @@ public class ShopAnalytics {
 			iShop.config.getString("shopStatsTotalTrades", "&aTrades: %trades")
 			.replaceAll("%trades", String.valueOf(totalTrades)));
 		messages[3] = ChatColor.translateAlternateColorCodes('&',
-			iShop.config.getString("shopStatsPopularItem", "&aPopular: %item")
-			.replaceAll("%item", popularItem != null ? popularItem : "None"));
+			iShop.config.getString("shopStatsPopularItem", "&aRecent item: %item")
+			.replaceAll("%item", recentItem != null ? recentItem : "None"));
 		messages[4] = ChatColor.translateAlternateColorCodes('&',
 			iShop.config.getString("shopStatsLastSale", "&aLast sale: %time")
 			.replaceAll("%time", lastSaleStr));

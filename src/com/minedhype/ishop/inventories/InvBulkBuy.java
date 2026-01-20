@@ -84,44 +84,63 @@ public class InvBulkBuy extends GUI {
 		
 		RowStore rowData = row.get();
 		
-		for(int i = 0; i < multiplier; i++) {
-			if(rowData.getItemIn().isSimilar(rowData.getItemIn2()) && !Utils.hasDoubleItemStock(player, rowData.getItemIn(), rowData.getItemIn2())) {
-				player.sendMessage(ChatColor.RED + "You don't have enough items to complete all trades! Completed " + i + " trades.");
-				return;
-			} else if(!Utils.hasStock(player, rowData.getItemIn()) || !Utils.hasStock(player, rowData.getItemIn2())) {
-				player.sendMessage(ChatColor.RED + "You don't have enough items to complete all trades! Completed " + i + " trades.");
-				return;
-			}
-
-			if(rowData.getItemOut().isSimilar(rowData.getItemOut2()) && !Utils.hasDoubleItemStock(shop, rowData.getItemOut(), rowData.getItemOut2())) {
-				player.sendMessage(ChatColor.RED + "Shop ran out of stock! Completed " + i + " trades.");
-				return;
-			} else if(!Utils.hasStock(shop, rowData.getItemOut()) || !Utils.hasStock(shop, rowData.getItemOut2())) {
-				player.sendMessage(ChatColor.RED + "Shop ran out of stock! Completed " + i + " trades.");
-				return;
-			}
-
-			int emptySlots = 0;
-			for(ItemStack item : player.getInventory().getStorageContents())
-				if(item == null || item.getType().isAir())
-					emptySlots++;
-
-			if(!rowData.getItemOut().getType().isAir() && !rowData.getItemOut2().getType().isAir()) {
-				if(emptySlots <= 1) {
-					player.sendMessage(ChatColor.RED + "Your inventory is full! Completed " + i + " trades.");
-					return;
-				}
-			} else {
-				if(emptySlots < 1) {
-					player.sendMessage(ChatColor.RED + "Your inventory is full! Completed " + i + " trades.");
-					return;
-				}
-			}
-
-			final int tradeIndex = i;
-			Bukkit.getScheduler().runTaskLater(iShop.getPlugin(), () -> shop.buy(player, rowIndex), tradeIndex * TRADE_DELAY_TICKS);
+		// Validate upfront before executing any trades
+		// Check player has enough items
+		int requiredIn = rowData.getItemIn().getAmount() * multiplier;
+		int requiredIn2 = rowData.getItemIn2().getAmount() * multiplier;
+		if(!hasEnoughItems(player, rowData.getItemIn(), requiredIn) || 
+		   !hasEnoughItems(player, rowData.getItemIn2(), requiredIn2)) {
+			player.sendMessage(ChatColor.RED + "You don't have enough items for " + multiplier + " trades!");
+			return;
 		}
 		
-		player.sendMessage(ChatColor.GREEN + "Successfully initiated " + multiplier + " trades!");
+		// Check shop has enough stock
+		int requiredOut = rowData.getItemOut().getAmount() * multiplier;
+		int requiredOut2 = rowData.getItemOut2().getAmount() * multiplier;
+		if(!hasEnoughItems(shop, rowData.getItemOut(), requiredOut) || 
+		   !hasEnoughItems(shop, rowData.getItemOut2(), requiredOut2)) {
+			player.sendMessage(ChatColor.RED + "Shop doesn't have enough stock for " + multiplier + " trades!");
+			return;
+		}
+		
+		// Check player has enough inventory space
+		int emptySlots = 0;
+		for(ItemStack item : player.getInventory().getStorageContents())
+			if(item == null || item.getType().isAir())
+				emptySlots++;
+		
+		int requiredSlots = 0;
+		if(!rowData.getItemOut().getType().isAir()) requiredSlots++;
+		if(!rowData.getItemOut2().getType().isAir()) requiredSlots++;
+		
+		if(emptySlots < requiredSlots) {
+			player.sendMessage(ChatColor.RED + "Your inventory is full! Need at least " + requiredSlots + " empty slots.");
+			return;
+		}
+		
+		// Execute all trades synchronously to avoid race conditions
+		for(int i = 0; i < multiplier; i++) {
+			shop.buy(player, rowIndex);
+		}
+		
+		player.sendMessage(ChatColor.GREEN + "Successfully completed " + multiplier + " trades!");
+	}
+	
+	private boolean hasEnoughItems(Object source, ItemStack item, int required) {
+		if(item.getType().isAir() || required == 0)
+			return true;
+		
+		if(source instanceof Player) {
+			Player p = (Player) source;
+			int count = 0;
+			for(ItemStack invItem : p.getInventory().getContents()) {
+				if(invItem != null && invItem.isSimilar(item))
+					count += invItem.getAmount();
+			}
+			return count >= required;
+		} else if(source instanceof Shop) {
+			return Utils.hasStock((Shop) source, item);
+		}
+		return false;
 	}
 }

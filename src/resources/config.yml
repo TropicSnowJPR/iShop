@@ -334,7 +334,7 @@ transactionLog: "&7[%time] %buyer bought %bought for %sold"
 shopStatsTitle: "&6=== Shop #%id Statistics ==="
 shopStatsTotalSales: "&aSales: %sales"
 shopStatsTotalTrades: "&aTrades: %trades"
-shopStatsPopularItem: "&aPopular: %item"
+shopStatsPopularItem: "&aRecent item: %item"
 shopStatsLastSale: "&aLast sale: %time"
 # Do not edit this!
 configVersion: 3.11
