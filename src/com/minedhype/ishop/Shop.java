@@ -598,18 +598,40 @@ public class Shop {
 	public static Shop createShop(Location loc, UUID owner, boolean admin) {
 		Shop shop = new Shop(-1, owner, loc, admin);
 		shops.add(shop);
-		Optional<StockShop> stockShop = StockShop.getStockShopByOwner(owner, 0);
-		if(!stockShop.isPresent())
-			new StockShop(owner, 0);
+		
+		// Wait for shop ID to be assigned, then create default stock pages
+		Bukkit.getScheduler().runTaskLater(plugin, () -> {
+			if(shop.idTienda > 0) {
+				int defaultPages = iShop.config.getInt("stockPagesPerShop", 2);
+				for(int i = 0; i < defaultPages; i++) {
+					Optional<StockShop> existingStock = StockShop.getStockShopByShopId(shop.idTienda, i);
+					if(!existingStock.isPresent()) {
+						new StockShop(shop.idTienda, i);
+					}
+				}
+			}
+		}, 20L);
+		
 		return shop;
 	}
 
 	public static Shop duplicateShop(Location loc, UUID owner, int shopId) {
 		Shop shop = new Shop(-1, owner, loc, false);
 		shops.add(shop);
-		Optional<StockShop> stockShop = StockShop.getStockShopByOwner(owner, 0);
-		if(!stockShop.isPresent())
-			new StockShop(owner, 0);
+		
+		// Wait for shop ID to be assigned, then create default stock pages
+		Bukkit.getScheduler().runTaskLater(plugin, () -> {
+			if(shop.idTienda > 0) {
+				int defaultPages = iShop.config.getInt("stockPagesPerShop", 2);
+				for(int i = 0; i < defaultPages; i++) {
+					Optional<StockShop> existingStock = StockShop.getStockShopByShopId(shop.idTienda, i);
+					if(!existingStock.isPresent()) {
+						new StockShop(shop.idTienda, i);
+					}
+				}
+			}
+		}, 20L);
+		
 		Optional<Shop> copyShop = Shop.getShopById(shopId);
 		for(int i=0;i<5;i++) {
 			if(copyShop.get().getRows()[i] != null)
@@ -655,15 +677,15 @@ public class Shop {
 		PreparedStatement loadShops = null;
 
 		try {
-			loadStocks = iShop.getConnection().prepareStatement("SELECT owner, itemsNew, pag FROM zooMercaStocks;");
+			// Load from new shop_stocks table
+			loadStocks = iShop.getConnection().prepareStatement("SELECT shop_id, page, items FROM shop_stocks;");
 			ResultSet dataStocks = loadStocks.executeQuery();
 			while(dataStocks.next()) {
-				String ownerRaw = dataStocks.getString(1);
-				UUID owner = UUID.fromString(ownerRaw);
-				int pag = dataStocks.getInt(3);
+				int shopId = dataStocks.getInt(1);
+				int pag = dataStocks.getInt(2);
 				try {
-					Blob blob = new SerialBlob(dataStocks.getBytes(2));
-					StockShop stock = new StockShop(owner, pag);
+					Blob blob = new SerialBlob(dataStocks.getBytes(3));
+					StockShop stock = new StockShop(shopId, pag);
 					stock.getInventory().setContents(decodeByte(blob.getBinaryStream()));
 				} catch (Exception ignored) { }
 			}
@@ -1101,7 +1123,7 @@ public class Shop {
 		else
 			max = InvAdminShop.maxPages;
 		for(int i=0; i<max; i++) {
-			Optional<StockShop> stock = StockShop.getStockShopByOwner(this.owner, i);
+			Optional<StockShop> stock = StockShop.getStockShopByShopId(this.idTienda, i);
 			if(!stock.isPresent())
 				continue;
 			Map<Integer, ItemStack> res = stock.get().getInventory().addItem(copy);
@@ -1110,7 +1132,7 @@ public class Shop {
 			else
 				copy.setAmount(res.get(0).getAmount());
 		}
-		InvStock.getInvStock(this.owner).refreshItems();
+		InvStock.getInvStock(this.idTienda).refreshItems();
 	}
 
 	public void takeItem(ItemStack item) {
@@ -1121,7 +1143,7 @@ public class Shop {
 		else
 			max = InvAdminShop.maxPages;
 		for(int i=0; i<max; i++) {
-			Optional<StockShop> stock = StockShop.getStockShopByOwner(this.owner, i);
+			Optional<StockShop> stock = StockShop.getStockShopByShopId(this.idTienda, i);
 			if(!stock.isPresent())
 				continue;
 			Map<Integer, ItemStack> res = stock.get().getInventory().removeItem(copy);
@@ -1130,12 +1152,20 @@ public class Shop {
 			else
 				copy.setAmount(res.get(0).getAmount());
 		}
-		InvStock.getInvStock(this.owner).refreshItems();
+		InvStock.getInvStock(this.idTienda).refreshItems();
 	}
 
 	public void delete(int index) {
 		rows[index] = null;
 	}
+	
+	public int getMaxStockPages() {
+		int configMax = iShop.config.getInt("maxStockPagesPerShop", 10);
+		// For now, return config value
+		// Future enhancement: check for permission-based max
+		return configMax;
+	}
+	
 	public void deleteShop() {
 		deleteShop(true);
 	}

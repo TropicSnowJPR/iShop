@@ -88,6 +88,20 @@ public class iShop extends JavaPlugin {
 			connection = DriverManager.getConnection(chainConnect);
 			this.createTables();
 		} catch(Exception e) { e.printStackTrace(); }
+		
+		// Run stock migration if needed
+		if(!config.getBoolean("stockMigrationComplete", false)) {
+			Bukkit.getScheduler().runTaskAsynchronously(this, () -> {
+				migrateStockToShops();
+				config.set("stockMigrationComplete", true);
+				try {
+					config.save(configFile);
+				} catch(IOException e) {
+					e.printStackTrace();
+				}
+			});
+		}
+		
 		int delayTime;
 		int saveDatabaseTime;
 		try {
@@ -176,7 +190,8 @@ public class iShop extends JavaPlugin {
 			stmts = new PreparedStatement[] {
 					connection.prepareStatement("CREATE TABLE IF NOT EXISTS zooMercaTiendas(id INTEGER PRIMARY KEY autoincrement, location varchar(64), owner varchar(64));"),
 					connection.prepareStatement("CREATE TABLE IF NOT EXISTS zooMercaTiendasFilas(itemInNew blob, itemIn2New blob, itemOutNew blob, itemOut2New blob, idTienda INTEGER);"),
-					connection.prepareStatement("CREATE TABLE IF NOT EXISTS zooMercaStocks(owner varchar(64), itemsNew blob);")
+					connection.prepareStatement("CREATE TABLE IF NOT EXISTS zooMercaStocks(owner varchar(64), itemsNew blob);"),
+					connection.prepareStatement("CREATE TABLE IF NOT EXISTS shop_stocks(shop_id INTEGER NOT NULL, page INTEGER NOT NULL, items BLOB, PRIMARY KEY (shop_id, page));")
 			};
 		} catch(Exception e) { e.printStackTrace(); }
 		for(PreparedStatement stmt : stmts) {
@@ -417,13 +432,127 @@ public class iShop extends JavaPlugin {
 					config.set("location", "&6Shop&a %id &6location XYZ:&a %x &6/&a %y &6/&a %z &6in&a %world");
 				case "3.10":
 					config.set("shopParticles", "villager_happy");
-					config.set("configVersion", "3.11");
-					config.save(configFile);
 				case "3.11":
+					config.set("stockPagesPerShop", 2);
+					config.set("maxStockPagesPerShop", 10);
+					config.set("stockMigrationComplete", false);
+					config.set("configVersion", "3.12");
+					config.save(configFile);
+				case "3.12":
 					break;
 			}
 		} catch(IOException | InvalidConfigurationException e) { e.printStackTrace(); }
 	}
+	
+	private void migrateStockToShops() {
+		getLogger().info("Starting stock inventory migration...");
+		
+		try {
+			// Check if old table exists
+			PreparedStatement checkTable = connection.prepareStatement(
+				"SELECT name FROM sqlite_master WHERE type='table' AND name='zooMercaStocks';"
+			);
+			ResultSet rs = checkTable.executeQuery();
+			
+			if(!rs.next()) {
+				getLogger().info("No old stock table found. Migration not needed.");
+				checkTable.close();
+				return;
+			}
+			checkTable.close();
+			
+			// Get all old stock data
+			PreparedStatement getOldStock = connection.prepareStatement(
+				"SELECT owner, itemsNew, pag FROM zooMercaStocks;"
+			);
+			ResultSet oldStock = getOldStock.executeQuery();
+			
+			java.util.Map<java.util.UUID, java.util.List<StockData>> playerStocks = new java.util.HashMap<>();
+			
+			while(oldStock.next()) {
+				try {
+					java.util.UUID owner = java.util.UUID.fromString(oldStock.getString("owner"));
+					byte[] items = oldStock.getBytes("itemsNew");
+					int page = oldStock.getInt("pag");
+					
+					if(items != null && items.length > 0) {
+						playerStocks.computeIfAbsent(owner, k -> new java.util.ArrayList<>())
+							.add(new StockData(items, page));
+					}
+				} catch(Exception e) {
+					getLogger().warning("Error reading stock data: " + e.getMessage());
+				}
+			}
+			getOldStock.close();
+			
+			// Wait for shops to load
+			try {
+				Thread.sleep(5000);
+			} catch(InterruptedException e) {
+				e.printStackTrace();
+			}
+			
+			// Migrate each player's stock to their first shop
+			int migratedCount = 0;
+			for(java.util.Map.Entry<java.util.UUID, java.util.List<StockData>> entry : playerStocks.entrySet()) {
+				java.util.UUID playerUuid = entry.getKey();
+				java.util.List<StockData> stocks = entry.getValue();
+				
+				// Find player's first shop
+				Optional<Shop> firstShop = Shop.shops.stream()
+					.filter(s -> s.isOwner(playerUuid))
+					.min(java.util.Comparator.comparingInt(Shop::shopId));
+				
+				if(firstShop.isPresent()) {
+					int shopId = firstShop.get().shopId();
+					
+					// Insert stock into new table
+					for(StockData stock : stocks) {
+						try {
+							PreparedStatement insert = connection.prepareStatement(
+								"INSERT OR REPLACE INTO shop_stocks (shop_id, page, items) VALUES (?, ?, ?);"
+							);
+							insert.setInt(1, shopId);
+							insert.setInt(2, stock.page);
+							insert.setBytes(3, stock.items);
+							insert.execute();
+							insert.close();
+						} catch(Exception e) {
+							getLogger().warning("Error inserting migrated stock: " + e.getMessage());
+						}
+					}
+					
+					migratedCount++;
+					getLogger().info("Migrated stock for player " + playerUuid + " to shop #" + shopId);
+				}
+			}
+			
+			// Rename old table to backup
+			PreparedStatement rename = connection.prepareStatement(
+				"ALTER TABLE zooMercaStocks RENAME TO zooMercaStocks_backup;"
+			);
+			rename.execute();
+			rename.close();
+			
+			getLogger().info("Stock migration complete! Migrated " + migratedCount + " player inventories.");
+			getLogger().info("Old table backed up as 'zooMercaStocks_backup'");
+			
+		} catch(Exception e) {
+			getLogger().severe("Error during stock migration: " + e.getMessage());
+			e.printStackTrace();
+		}
+	}
+	
+	// Helper class for migration
+	private static class StockData {
+		byte[] items;
+		int page;
+		StockData(byte[] items, int page) {
+			this.items = items;
+			this.page = page;
+		}
+	}
+	
 	public static iShop getPlugin() {
 		return iShop.getPlugin(iShop.class);
 	}

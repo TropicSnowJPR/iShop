@@ -91,7 +91,7 @@ public class EventShop implements Listener {
 			event.setCancelled(true);
 			if(shuttingDown)
 				return;
-			if(InvStock.inShopInv.containsValue(shop.get().getOwner())) {
+			if(InvStock.inShopInv.containsValue(shop.get().shopId())) {
 				if(event.getHand().equals(EquipmentSlot.HAND))
 					event.getPlayer().sendMessage(Messages.SHOP_BUSY.toString());
 				else if(event.getHand().equals(EquipmentSlot.OFF_HAND))
@@ -127,7 +127,7 @@ public class EventShop implements Listener {
 			event.setCancelled(true);
 			if(shuttingDown)
 				return;
-			if(InvStock.inShopInv.containsValue(shop.get().getOwner())) {
+			if(InvStock.inShopInv.containsValue(shop.get().shopId())) {
 				if(event.getHand().equals(EquipmentSlot.HAND))
 					event.getPlayer().sendMessage(Messages.SHOP_BUSY.toString());
 				else if(event.getHand().equals(EquipmentSlot.OFF_HAND))
@@ -166,7 +166,7 @@ public class EventShop implements Listener {
 					event.setCancelled(true);
 					if(shuttingDown)
 						return;
-					if(InvStock.inShopInv.containsValue(shop.get().getOwner())) {
+					if(InvStock.inShopInv.containsValue(shop.get().shopId())) {
 						if(event.getHand().equals(EquipmentSlot.HAND))
 							event.getPlayer().sendMessage(Messages.SHOP_BUSY.toString());
 						else if(event.getHand().equals(EquipmentSlot.OFF_HAND))
@@ -205,25 +205,24 @@ public class EventShop implements Listener {
 						event.getPlayer().sendMessage(Messages.SHOP_FAR.toString());
 						return;
 					}
-				if(InvStock.inShopInv.containsValue(event.getPlayer().getUniqueId())) {
+				
+				// Find the nearest/first shop owned by the player
+				Optional<Shop> nearestShop = Shop.shops.stream()
+					.filter(s -> s.isOwner(event.getPlayer().getUniqueId()))
+					.min(java.util.Comparator.comparingInt(Shop::shopId));
+				
+				if(!nearestShop.isPresent()) {
+					event.getPlayer().sendMessage(Messages.NO_SHOP_STOCK.toString());
+					return;
+				}
+				
+				int shopId = nearestShop.get().shopId();
+				if(InvStock.inShopInv.containsValue(shopId)) {
 					event.getPlayer().sendMessage(Messages.SHOP_BUSY.toString());
 					return;
-				} else { InvStock.inShopInv.put(event.getPlayer(), event.getPlayer().getUniqueId()); }
-				InvStock inv = InvStock.getInvStock(event.getPlayer().getUniqueId());
-				int maxStockPages = InvAdminShop.maxPages;
-				if(InvAdminShop.usePerms) {
-					String permPrefix = Permission.SHOP_STOCK_PREFIX.toString();
-					int maxPermPages = InvAdminShop.permissionMax;
-					boolean permissionFound = false;
-					for(int i=maxPermPages; i>0; i--)
-						if(event.getPlayer().hasPermission(permPrefix + i)) {
-							maxStockPages = i;
-							permissionFound = true;
-							break;
-						}
-					if(!permissionFound)
-						maxStockPages = maxPermPages;
-				}
+				} else { InvStock.inShopInv.put(event.getPlayer(), shopId); }
+				InvStock inv = InvStock.getInvStock(shopId);
+				int maxStockPages = nearestShop.get().getMaxStockPages();
 				inv.setMaxPages(maxStockPages);
 				inv.setPag(0);
 				inv.open(event.getPlayer());
@@ -254,25 +253,24 @@ public class EventShop implements Listener {
 								event.getPlayer().sendMessage(Messages.SHOP_FAR.toString());
 								return;
 							}
-						if(InvStock.inShopInv.containsValue(event.getPlayer().getUniqueId())) {
+						
+						// Find the nearest/first shop owned by the player
+						Optional<Shop> nearestShop = Shop.shops.stream()
+							.filter(s -> s.isOwner(event.getPlayer().getUniqueId()))
+							.min(java.util.Comparator.comparingInt(Shop::shopId));
+						
+						if(!nearestShop.isPresent()) {
+							event.getPlayer().sendMessage(Messages.NO_SHOP_STOCK.toString());
+							return;
+						}
+						
+						int shopId = nearestShop.get().shopId();
+						if(InvStock.inShopInv.containsValue(shopId)) {
 							event.getPlayer().sendMessage(Messages.SHOP_BUSY.toString());
 							return;
-						} else { InvStock.inShopInv.put(event.getPlayer(), event.getPlayer().getUniqueId()); }
-						InvStock inv = InvStock.getInvStock(event.getPlayer().getUniqueId());
-						int maxStockPages = InvAdminShop.maxPages;
-						if(InvAdminShop.usePerms) {
-							String permPrefix = Permission.SHOP_STOCK_PREFIX.toString();
-							int maxPermPages = InvAdminShop.permissionMax;
-							boolean permissionFound = false;
-							for(int i=maxPermPages; i>0; i--)
-								if(event.getPlayer().hasPermission(permPrefix + i)) {
-									maxStockPages = i;
-									permissionFound = true;
-									break;
-								}
-							if(!permissionFound)
-								maxStockPages = maxPermPages;
-						}
+						} else { InvStock.inShopInv.put(event.getPlayer(), shopId); }
+						InvStock inv = InvStock.getInvStock(shopId);
+						int maxStockPages = nearestShop.get().getMaxStockPages();
 						inv.setMaxPages(maxStockPages);
 						inv.setPag(0);
 						inv.open(event.getPlayer());

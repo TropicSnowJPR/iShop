@@ -22,22 +22,22 @@ import org.bukkit.inventory.meta.BundleMeta;
 
 public class InvStock extends GUI {
 
-	public static final HashMap<Player, UUID> inShopInv = new HashMap<>();
+	public static final HashMap<Player, Integer> inShopInv = new HashMap<>();
 	private static final List<InvStock> inventories = new ArrayList<>();
 	private final ItemStack airItem = new ItemStack(Material.AIR, 0);
-	private final UUID owner;
+	private final int shopId;
 	private int pag;
 	private int stockPages;
 	private Player player;
 	
-	private InvStock(UUID owner) {
-		super(54, Messages.SHOP_TITLE_STOCK.toString());
+	private InvStock(int shopId) {
+		super(54, ChatColor.GREEN + "Shop #" + shopId + " Stock");
 		inventories.add(this);
-		this.owner = owner;
+		this.shopId = shopId;
 		this.pag = 0;
 	}
 	
-	public static InvStock getInvStock(UUID owner) { return inventories.parallelStream().filter(inv -> inv.owner.equals(owner)).findFirst().orElse(new InvStock(owner)); }
+	public static InvStock getInvStock(int shopId) { return inventories.parallelStream().filter(inv -> inv.shopId == shopId).findFirst().orElse(new InvStock(shopId)); }
 	
 	@Override
 	public void onClick(InventoryClickEvent event) {
@@ -48,7 +48,8 @@ public class InvStock extends GUI {
 			if(InvCreateRow.strictStock) {
 				ItemStack item = event.getCurrentItem();
 				ItemStack item2 = event.getCursor();
-				if(Shop.strictStockShopCheck(item, owner) || Shop.strictStockShopCheck(item2, owner))
+				Optional<Shop> shop = Shop.getShopById(shopId);
+				if(shop.isPresent() && (Shop.strictStockShopCheck(item, shop.get().getOwner()) || Shop.strictStockShopCheck(item2, shop.get().getOwner())))
 					return;
 			}
 			if(InvCreateRow.itemsDisabled) {
@@ -107,9 +108,9 @@ public class InvStock extends GUI {
 	}
 	
 	public void refreshItems() {
-		Optional<StockShop> stockOpt = StockShop.getStockShopByOwner(owner, pag);
+		Optional<StockShop> stockOpt = StockShop.getStockShopByShopId(shopId, pag);
 		StockShop stock;
-		stock = stockOpt.orElseGet(() -> new StockShop(owner, pag));
+		stock = stockOpt.orElseGet(() -> new StockShop(shopId, pag));
 		Inventory inv = stock.getInventory();
 		for(int i=0; i<45; i++)
 			placeItem(i, inv.getItem(i));
@@ -145,7 +146,7 @@ public class InvStock extends GUI {
 	@Override
 	public void onClose(InventoryCloseEvent event) {
 		Inventory inventory = event.getInventory();
-		Optional<StockShop> stock = StockShop.getStockShopByOwner(owner, pag);
+		Optional<StockShop> stock = StockShop.getStockShopByShopId(shopId, pag);
 		if(!stock.isPresent())
 			return;
 		stock.get().setInventory(inventory);
