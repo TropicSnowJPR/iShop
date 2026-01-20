@@ -48,31 +48,38 @@ public class InvStock extends GUI {
 		// Check if stock locking is enabled
 		boolean lockingEnabled = iShop.config.getBoolean("enableStockLocking", true);
 		
-		if(lockingEnabled) {
-			// Check if another player has this shop's stock open
-			UUID currentUser = stockAccessLock.get(shopId);
+		if (lockingEnabled) {
+			UUID playerId = player.getUniqueId();
 			
-			if(currentUser != null) {
-				// Check if it's a different player
-				if(!currentUser.equals(player.getUniqueId())) {
-					// Check if that player is still online and has it open
-					Player otherPlayer = Bukkit.getPlayer(currentUser);
-					
-					if(otherPlayer != null && otherPlayer.isOnline()) {
-						// Stock inventory is actually in use
-						if(iShop.config.getBoolean("showLockMessages", true)) {
-							player.sendMessage(ChatColor.RED + otherPlayer.getName() + " is currently managing this shop's stock inventory.");
-						}
-						return null;
-					} else {
-						// Player logged out or closed inventory, clear stale lock
-						stockAccessLock.remove(shopId);
-					}
+			// Atomically acquire or validate the lock using putIfAbsent / replace
+			for (;;) {
+				// Try to acquire the lock if it's free
+				UUID currentUser = stockAccessLock.putIfAbsent(shopId, playerId);
+				
+				// Lock was free or already held by this player
+				if (currentUser == null || currentUser.equals(playerId)) {
+					break;
 				}
+				
+				// Lock is held by another player
+				Player otherPlayer = Bukkit.getPlayer(currentUser);
+				
+				if (otherPlayer != null && otherPlayer.isOnline()) {
+					// Stock inventory is actually in use
+					if (iShop.config.getBoolean("showLockMessages", true)) {
+						player.sendMessage(ChatColor.RED + otherPlayer.getName() + " is currently managing this shop's stock inventory.");
+					}
+					return null;
+				}
+				
+				// Stale lock (player logged out or closed inventory) - try to replace it atomically
+				boolean replaced = stockAccessLock.replace(shopId, currentUser, playerId);
+				if (replaced) {
+					break;
+				}
+				
+				// Another thread modified the lock between our read and replace; retry
 			}
-			
-			// Acquire lock for this player
-			stockAccessLock.put(shopId, player.getUniqueId());
 		}
 		
 		return inventories.parallelStream().filter(inv -> inv.shopId == shopId).findFirst().orElse(new InvStock(shopId));
