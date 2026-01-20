@@ -146,6 +146,8 @@ public class iShop extends JavaPlugin {
 			tickTask = Bukkit.getScheduler().runTaskTimerAsynchronously(this, Shop::tickShops, delayTime+250, 50);
 		Bukkit.getScheduler().runTaskLaterAsynchronously(this, Shop::getPlayersShopList, delayTime+160);
 		Bukkit.getScheduler().runTaskLaterAsynchronously(this, Shop::removeEmptyShopTrade, delayTime+100);
+		if(config.getBoolean("notifyLowStock", true))
+			Bukkit.getScheduler().runTaskTimerAsynchronously(this, Shop::checkAllShopsStockLevels, delayTime+400, 6000);
 		MetricsLite metrics = new MetricsLite(this, 9189);
 		new UpdateChecker(this, 84555).getVersion(version -> {
 			if(!this.getDescription().getVersion().equalsIgnoreCase(version))
@@ -205,7 +207,9 @@ public class iShop extends JavaPlugin {
 					connection.prepareStatement("CREATE TABLE IF NOT EXISTS zooMercaTiendasFilas(itemInNew blob, itemIn2New blob, itemOutNew blob, itemOut2New blob, idTienda INTEGER);"),
 					connection.prepareStatement("CREATE TABLE IF NOT EXISTS zooMercaStocks(owner varchar(64), itemsNew blob);"),
 					connection.prepareStatement("CREATE TABLE IF NOT EXISTS shop_stocks(shop_id INTEGER NOT NULL, page INTEGER NOT NULL, items BLOB, PRIMARY KEY (shop_id, page));"),
-					connection.prepareStatement("CREATE TABLE IF NOT EXISTS shop_members(shop_id INTEGER NOT NULL, player_uuid TEXT NOT NULL, role TEXT NOT NULL, added_date INTEGER NOT NULL, PRIMARY KEY (shop_id, player_uuid));")
+					connection.prepareStatement("CREATE TABLE IF NOT EXISTS shop_members(shop_id INTEGER NOT NULL, player_uuid TEXT NOT NULL, role TEXT NOT NULL, added_date INTEGER NOT NULL, PRIMARY KEY (shop_id, player_uuid));"),
+					connection.prepareStatement("CREATE TABLE IF NOT EXISTS shop_transactions(id INTEGER PRIMARY KEY AUTOINCREMENT, shop_id INTEGER, buyer_uuid TEXT, buyer_name TEXT, item_sold TEXT, item_sold_amount INTEGER, item_bought TEXT, item_bought_amount INTEGER, timestamp INTEGER);"),
+					connection.prepareStatement("CREATE TABLE IF NOT EXISTS shop_analytics(shop_id INTEGER PRIMARY KEY, total_sales INTEGER DEFAULT 0, total_trades INTEGER DEFAULT 0, last_sale_timestamp INTEGER, popular_item TEXT);")
 			};
 		} catch(Exception e) { e.printStackTrace(); }
 		for(PreparedStatement stmt : stmts) {

@@ -1107,7 +1107,18 @@ public class Shop {
 		final int iA2 = inA2;
 		final int oA1 = outA1;
 		final int oA2 = outA2;
-		Bukkit.getScheduler().runTaskAsynchronously(iShop.getPlugin(), () -> sendShopMessages(i1, i2, o1, o2, iA1, iA2, oA1, oA2, this.owner, shoppingPlayer, this.admin, rowBroadcast));
+		Bukkit.getScheduler().runTaskAsynchronously(iShop.getPlugin(), () -> {
+			sendShopMessages(i1, i2, o1, o2, iA1, iA2, oA1, oA2, this.owner, shoppingPlayer, this.admin, rowBroadcast);
+			
+			String soldItems = (o1.equals("empty x 0") ? "" : o1) + (o2.equals("empty x 0") ? "" : ", " + o2);
+			soldItems = soldItems.replaceFirst("^, ", "");
+			String boughtItems = (i1.equals("empty x 0") ? "" : i1) + (i2.equals("empty x 0") ? "" : ", " + i2);
+			boughtItems = boughtItems.replaceFirst("^, ", "");
+			int totalSoldAmount = oA1 + oA2;
+			
+			ShopTransaction.logTransaction(this.idTienda, shoppingPlayer, soldItems, totalSoldAmount, boughtItems, iA1 + iA2);
+			ShopAnalytics.updateAnalytics(this.idTienda, soldItems, totalSoldAmount);
+		});
 	}
 
 	public boolean hasExpired() {
@@ -1652,6 +1663,119 @@ public class Shop {
 			.map(ShopMember::getRole)
 			.findFirst()
 			.orElse(null);
+	}
+	
+	public void transferOwnership(UUID newOwnerUuid) {
+		PreparedStatement stmt = null;
+		try {
+			stmt = iShop.getConnection().prepareStatement("UPDATE zooMercaTiendas SET owner = ? WHERE id = ?;");
+			stmt.setString(1, newOwnerUuid.toString());
+			stmt.setInt(2, this.idTienda);
+			stmt.executeUpdate();
+			
+			ShopMember oldOwnerMember = new ShopMember(this.idTienda, this.owner, ShopMember.MemberRole.CO_OWNER, System.currentTimeMillis());
+			oldOwnerMember.save();
+			members.add(oldOwnerMember);
+			
+			ShopMember existingMember = members.stream()
+				.filter(m -> m.getPlayerUuid().equals(newOwnerUuid))
+				.findFirst()
+				.orElse(null);
+			
+			if(existingMember != null) {
+				members.remove(existingMember);
+				existingMember.delete();
+			}
+			
+		} catch (Exception e) {
+			e.printStackTrace();
+		} finally {
+			try {
+				if(stmt != null)
+					stmt.close();
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
+		}
+	}
+	
+	public void checkStockLevels() {
+		if(!iShop.config.getBoolean("notifyLowStock", true))
+			return;
+		
+		int threshold = iShop.config.getInt("lowStockThreshold", 16);
+		
+		for(int i = 0; i < 5; i++) {
+			Optional<RowStore> row = getRow(i);
+			if(!row.isPresent())
+				continue;
+			
+			ItemStack itemOut = row.get().getItemOut();
+			ItemStack itemOut2 = row.get().getItemOut2();
+			
+			if(!itemOut.getType().isAir()) {
+				int stockCount = countItemInStock(itemOut);
+				if(stockCount > 0 && stockCount <= threshold) {
+					notifyLowStock(itemOut, stockCount);
+				}
+			}
+			
+			if(!itemOut2.getType().isAir() && !itemOut2.isSimilar(itemOut)) {
+				int stockCount = countItemInStock(itemOut2);
+				if(stockCount > 0 && stockCount <= threshold) {
+					notifyLowStock(itemOut2, stockCount);
+				}
+			}
+		}
+	}
+	
+	private int countItemInStock(ItemStack item) {
+		int count = 0;
+		int max = InvAdminShop.usePerms ? InvAdminShop.permissionMax : InvAdminShop.maxPages;
+		
+		for(int i = 0; i < max; i++) {
+			Optional<StockShop> stock = StockShop.getStockShopByShopId(this.idTienda, i);
+			if(!stock.isPresent())
+				continue;
+			
+			for(ItemStack stackItem : stock.get().getInventory().getContents()) {
+				if(stackItem != null && stackItem.isSimilar(item)) {
+					count += stackItem.getAmount();
+				}
+			}
+		}
+		
+		return count;
+	}
+	
+	private void notifyLowStock(ItemStack item, int amount) {
+		String message = ChatColor.translateAlternateColorCodes('&',
+			iShop.config.getString("lowStockNotification", "&6[Shop #%id] Low stock alert: %item has only %amount left!")
+			.replaceAll("%id", String.valueOf(this.idTienda))
+			.replaceAll("%item", item.getType().name().toLowerCase().replaceAll("_", " "))
+			.replaceAll("%amount", String.valueOf(amount)));
+		
+		Player ownerPlayer = Bukkit.getPlayer(this.owner);
+		if(ownerPlayer != null && ownerPlayer.isOnline()) {
+			ownerPlayer.sendMessage(message);
+		}
+		
+		for(ShopMember member : members) {
+			if(member.getRole() == ShopMember.MemberRole.CO_OWNER) {
+				Player memberPlayer = Bukkit.getPlayer(member.getPlayerUuid());
+				if(memberPlayer != null && memberPlayer.isOnline()) {
+					memberPlayer.sendMessage(message);
+				}
+			}
+		}
+	}
+	
+	public static void checkAllShopsStockLevels() {
+		for(Shop shop : shops) {
+			if(!shop.admin) {
+				shop.checkStockLevels();
+			}
+		}
 	}
 	
 	public boolean isAdmin() { return this.admin; }

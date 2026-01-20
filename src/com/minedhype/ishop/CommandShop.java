@@ -161,6 +161,16 @@ public class CommandShop implements CommandExecutor {
 			Bukkit.getServer().getScheduler().runTaskAsynchronously(iShop.getPlugin(), () -> listMembers(player, args));
 		else if(args[0].equalsIgnoreCase("leave") && args.length >= 2)
 			Bukkit.getServer().getScheduler().runTaskAsynchronously(iShop.getPlugin(), () -> leaveShop(player, args));
+		else if(args[0].equalsIgnoreCase("transfer") && args.length >= 3)
+			Bukkit.getServer().getScheduler().runTaskAsynchronously(iShop.getPlugin(), () -> transferShop(player, args));
+		else if(args[0].equalsIgnoreCase("logs") && args.length >= 2)
+			Bukkit.getServer().getScheduler().runTaskAsynchronously(iShop.getPlugin(), () -> viewLogs(player, args[1]));
+		else if(args[0].equalsIgnoreCase("stats") && args.length >= 2)
+			Bukkit.getServer().getScheduler().runTaskAsynchronously(iShop.getPlugin(), () -> viewStats(player, args[1]));
+		else if(args[0].equalsIgnoreCase("blacklist") && args.length >= 2)
+			blacklistCommand(player, args);
+		else if(args[0].equalsIgnoreCase("deleteall") && args.length >= 2)
+			removeAllShops(player, args[1]);
 		else
 			Bukkit.getServer().getScheduler().runTaskAsynchronously(iShop.getPlugin(), () -> listSubCmd(player, label));
 
@@ -202,7 +212,12 @@ public class CommandShop implements CommandExecutor {
 			player.sendMessage(ChatColor.GRAY + "/" + label + " listadmin");
 			player.sendMessage(ChatColor.GRAY + "/" + label + " reload");
 			player.sendMessage(ChatColor.GRAY + "/" + label + " removeallshops <player>");
+			player.sendMessage(ChatColor.GRAY + "/" + label + " deleteall <player>");
+			player.sendMessage(ChatColor.GRAY + "/" + label + " transfer <shopId> <player>");
+			player.sendMessage(ChatColor.GRAY + "/" + label + " blacklist add/remove/list [item]");
 		}
+		player.sendMessage(ChatColor.GRAY + "/" + label + " logs <shopId>");
+		player.sendMessage(ChatColor.GRAY + "/" + label + " stats <shopId>");
 	}
 
 	private void count(Player player, String itemName) {
@@ -1982,5 +1997,161 @@ public class CommandShop implements CommandExecutor {
 		}
 		shop.get().removeMember(player.getUniqueId());
 		player.sendMessage(Messages.SHOP_LEFT.toString().replaceAll("%id", String.valueOf(shopId)));
+	}
+	
+	private void transferShop(Player player, String[] args) {
+		if(!player.hasPermission(Permission.SHOP_ADMIN.toString())) {
+			int shopId;
+			try {
+				shopId = Integer.parseInt(args[1]);
+			} catch(Exception e) {
+				player.sendMessage(ChatColor.translateAlternateColorCodes('&', iShop.config.getString("shopTransferUsage")));
+				return;
+			}
+			
+			Optional<Shop> shop = Shop.getShopById(shopId);
+			if(!shop.isPresent()) {
+				player.sendMessage(Messages.SHOP_NOT_FOUND.toString());
+				return;
+			}
+			
+			if(!shop.get().isOwner(player.getUniqueId())) {
+				player.sendMessage(Messages.SHOP_NO_SELF.toString());
+				return;
+			}
+		}
+		
+		if(args.length < 3) {
+			player.sendMessage(ChatColor.translateAlternateColorCodes('&', iShop.config.getString("shopTransferUsage")));
+			return;
+		}
+		
+		int shopId;
+		try {
+			shopId = Integer.parseInt(args[1]);
+		} catch(Exception e) {
+			player.sendMessage(ChatColor.translateAlternateColorCodes('&', iShop.config.getString("shopTransferUsage")));
+			return;
+		}
+		
+		Optional<Shop> shop = Shop.getShopById(shopId);
+		if(!shop.isPresent()) {
+			player.sendMessage(Messages.SHOP_NOT_FOUND.toString());
+			return;
+		}
+		
+		OfflinePlayer targetPlayer = Bukkit.getOfflinePlayer(args[2]);
+		if(targetPlayer == null || (!targetPlayer.hasPlayedBefore() && !targetPlayer.isOnline())) {
+			player.sendMessage(Messages.NO_PLAYER_FOUND.toString());
+			return;
+		}
+		
+		shop.get().transferOwnership(targetPlayer.getUniqueId());
+		player.sendMessage(ChatColor.translateAlternateColorCodes('&', 
+			iShop.config.getString("shopTransferred")
+			.replaceAll("%id", String.valueOf(shopId))
+			.replaceAll("%player", targetPlayer.getName())));
+	}
+	
+	private void viewLogs(Player player, String shopIdStr) {
+		int shopId;
+		try {
+			shopId = Integer.parseInt(shopIdStr);
+		} catch(Exception e) {
+			player.sendMessage(Messages.SHOP_ID_INTEGER.toString());
+			return;
+		}
+		
+		Optional<Shop> shop = Shop.getShopById(shopId);
+		if(!shop.isPresent()) {
+			player.sendMessage(Messages.SHOP_NOT_FOUND.toString());
+			return;
+		}
+		
+		if(!shop.get().isOwner(player.getUniqueId()) && !player.hasPermission(Permission.SHOP_ADMIN.toString())) {
+			player.sendMessage(Messages.SHOP_NO_SELF.toString());
+			return;
+		}
+		
+		List<String> transactions = ShopTransaction.getTransactions(shopId, 10);
+		player.sendMessage(ChatColor.GOLD + "Recent transactions for Shop #" + shopId + ":");
+		if(transactions.isEmpty()) {
+			player.sendMessage(ChatColor.GRAY + "No transactions found.");
+		} else {
+			for(String transaction : transactions) {
+				player.sendMessage(ChatColor.translateAlternateColorCodes('&', transaction));
+			}
+		}
+	}
+	
+	private void viewStats(Player player, String shopIdStr) {
+		int shopId;
+		try {
+			shopId = Integer.parseInt(shopIdStr);
+		} catch(Exception e) {
+			player.sendMessage(Messages.SHOP_ID_INTEGER.toString());
+			return;
+		}
+		
+		Optional<Shop> shop = Shop.getShopById(shopId);
+		if(!shop.isPresent()) {
+			player.sendMessage(Messages.SHOP_NOT_FOUND.toString());
+			return;
+		}
+		
+		if(!shop.get().isOwner(player.getUniqueId()) && !player.hasPermission(Permission.SHOP_ADMIN.toString())) {
+			player.sendMessage(Messages.SHOP_NO_SELF.toString());
+			return;
+		}
+		
+		ShopAnalytics analytics = new ShopAnalytics(shopId);
+		String[] messages = analytics.getStatsMessages();
+		for(String message : messages) {
+			player.sendMessage(message);
+		}
+	}
+	
+	private void blacklistCommand(Player player, String[] args) {
+		if(!player.hasPermission(Permission.SHOP_ADMIN.toString())) {
+			player.sendMessage(Messages.NO_PERMISSION.toString());
+			return;
+		}
+		
+		if(args[1].equalsIgnoreCase("add") && args.length >= 3) {
+			String item = args[2].toUpperCase();
+			List<String> blacklist = iShop.config.getStringList("blacklistedItems");
+			if(!blacklist.contains(item)) {
+				blacklist.add(item);
+				iShop.config.set("blacklistedItems", blacklist);
+				try {
+					iShop.config.save(iShop.getPlugin().getDataFolder() + "/config.yml");
+				} catch(Exception e) {
+					e.printStackTrace();
+				}
+				player.sendMessage(ChatColor.translateAlternateColorCodes('&', 
+					iShop.config.getString("blacklistAdded").replaceAll("%item", item)));
+			}
+		} else if(args[1].equalsIgnoreCase("remove") && args.length >= 3) {
+			String item = args[2].toUpperCase();
+			List<String> blacklist = iShop.config.getStringList("blacklistedItems");
+			if(blacklist.contains(item)) {
+				blacklist.remove(item);
+				iShop.config.set("blacklistedItems", blacklist);
+				try {
+					iShop.config.save(iShop.getPlugin().getDataFolder() + "/config.yml");
+				} catch(Exception e) {
+					e.printStackTrace();
+				}
+				player.sendMessage(ChatColor.translateAlternateColorCodes('&', 
+					iShop.config.getString("blacklistRemoved").replaceAll("%item", item)));
+			}
+		} else if(args[1].equalsIgnoreCase("list")) {
+			List<String> blacklist = iShop.config.getStringList("blacklistedItems");
+			String items = blacklist.isEmpty() ? "None" : String.join(", ", blacklist);
+			player.sendMessage(ChatColor.translateAlternateColorCodes('&', 
+				iShop.config.getString("blacklistList").replaceAll("%items", items)));
+		} else {
+			player.sendMessage(ChatColor.RED + "Usage: /shop blacklist <add/remove/list> [item]");
+		}
 	}
 }

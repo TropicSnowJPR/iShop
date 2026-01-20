@@ -11,9 +11,13 @@ import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
 import org.bukkit.OfflinePlayer;
+import org.bukkit.entity.Player;
+import org.bukkit.event.inventory.ClickType;
+import org.bukkit.event.inventory.InventoryClickEvent;
 
 public class InvShop extends GUI {
 	public static boolean listAllShops = iShop.config.getBoolean("publicShopListCommand");
+	private final Shop shop;
 
 	private static String getShopName(Shop shop) {
 		String shopId = String.valueOf(shop.shopId());
@@ -28,6 +32,7 @@ public class InvShop extends GUI {
 
 	public InvShop(Shop shop) {
 		super(54, getShopName(shop));
+		this.shop = shop;
 		for(int x=0; x<9; x++) {
 			for(int y=0; y<6; y++) {
 				if(x == 1) {
@@ -99,6 +104,34 @@ public class InvShop extends GUI {
 						placeItem(y*9+x, GUI.createItem(Material.GRAY_DYE, ""));
 				} else
 					placeItem(y*9+x, GUI.createItem(Material.BLACK_STAINED_GLASS_PANE, ""));
+			}
+		}
+	}
+	
+	@Override
+	public void onClick(InventoryClickEvent e) {
+		super.onClick(e);
+		
+		if(!iShop.config.getBoolean("enableBulkBuy", true))
+			return;
+		
+		if(e.getClick() != ClickType.RIGHT && e.getClick() != ClickType.SHIFT_RIGHT)
+			return;
+		
+		int slot = e.getRawSlot();
+		int x = slot % 9;
+		int y = slot / 9;
+		
+		if(y >= 1 && y <= 5 && x == 8) {
+			int rowIndex = y - 1;
+			Optional<RowStore> row = shop.getRow(rowIndex);
+			if(row.isPresent() && e.getWhoClicked() instanceof Player) {
+				Player player = (Player) e.getWhoClicked();
+				player.closeInventory();
+				Bukkit.getScheduler().runTask(iShop.getPlugin(), () -> {
+					InvBulkBuy bulkBuyGUI = new InvBulkBuy(shop, rowIndex);
+					bulkBuyGUI.open(player);
+				});
 			}
 		}
 	}
