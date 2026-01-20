@@ -170,7 +170,7 @@ public class InvAdminShop extends GUI {
 								}
 								inv.setMaxPages(maxStockPages);
 								inv.setPag(0);
-								InvStock.inShopInv.put(player, player.getUniqueId());
+								InvStock.inShopInv.put(player, shop.shopId());
 								inv.open(player);
 							}
 						});
