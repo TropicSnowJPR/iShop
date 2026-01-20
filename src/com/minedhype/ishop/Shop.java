@@ -65,6 +65,14 @@ public class Shop {
 	private static final long millisecondsPerDay = 86400000;
 	private final ItemStack airItem = new ItemStack(Material.AIR, 0);
 	private final Map<Player, Long> cdTime = new HashMap<>();
+	// Trade row locks - one trade at a time per row (fixed array for 5 rows)
+	private final AtomicBoolean[] rowLocks = new AtomicBoolean[] {
+		new AtomicBoolean(false),
+		new AtomicBoolean(false),
+		new AtomicBoolean(false),
+		new AtomicBoolean(false),
+		new AtomicBoolean(false)
+	};
 	private final UUID owner;
 	private final Location location;
 	private final RowStore[] rows;
@@ -975,6 +983,41 @@ public class Shop {
 	}
 
 	public void buy(Player player, int index) {
+		// Check if trade locking is enabled
+		boolean lockingEnabled = iShop.config.getBoolean("enableTradeLocking", true);
+		
+		if(lockingEnabled) {
+			// Validate row index
+			if(index < 0 || index >= rowLocks.length) {
+				return;
+			}
+			
+			// Get lock for this specific row
+			AtomicBoolean rowLock = rowLocks[index];
+			
+			// Try to acquire lock (non-blocking)
+			if(!rowLock.compareAndSet(false, true)) {
+				// Lock already held by another player
+				if(iShop.config.getBoolean("showLockMessages", true)) {
+					player.sendMessage(ChatColor.YELLOW + "Another player is currently purchasing this item. Please try again in a moment.");
+				}
+				return;
+			}
+			
+			try {
+				// Execute trade with lock held
+				executeTradeWithoutLock(player, index);
+			} finally {
+				// ALWAYS release lock, even if exception occurs
+				rowLock.set(false);
+			}
+		} else {
+			// Locking disabled, execute directly
+			executeTradeWithoutLock(player, index);
+		}
+	}
+	
+	private void executeTradeWithoutLock(Player player, int index) {
 		Optional<RowStore> row = getRow(index);
 		if(!row.isPresent())
 			return;

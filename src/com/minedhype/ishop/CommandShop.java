@@ -171,6 +171,10 @@ public class CommandShop implements CommandExecutor {
 			blacklistCommand(player, args);
 		else if(args[0].equalsIgnoreCase("deleteall") && args.length >= 2)
 			removeAllShops(player, args[1]);
+		else if(args[0].equalsIgnoreCase("locks"))
+			viewLocks(player);
+		else if(args[0].equalsIgnoreCase("unlock") && args.length >= 2)
+			forceUnlock(player, args);
 		else
 			Bukkit.getServer().getScheduler().runTaskAsynchronously(iShop.getPlugin(), () -> listSubCmd(player, label));
 
@@ -215,6 +219,8 @@ public class CommandShop implements CommandExecutor {
 			player.sendMessage(ChatColor.GRAY + "/" + label + " deleteall <player>");
 			player.sendMessage(ChatColor.GRAY + "/" + label + " transfer <shopId> <player>");
 			player.sendMessage(ChatColor.GRAY + "/" + label + " blacklist add/remove/list [item]");
+			player.sendMessage(ChatColor.GRAY + "/" + label + " locks");
+			player.sendMessage(ChatColor.GRAY + "/" + label + " unlock <shopId>");
 		}
 		player.sendMessage(ChatColor.GRAY + "/" + label + " logs <shopId>");
 		player.sendMessage(ChatColor.GRAY + "/" + label + " stats <shopId>");
@@ -1426,10 +1432,16 @@ public class CommandShop implements CommandExecutor {
 			player.sendMessage(Messages.SHOP_BUSY.toString());
 			return;
 		} else { InvStock.inShopInv.put(player, shopId); }
-		InvStock inv = InvStock.getInvStock(shopId);
-		inv.setMaxPages(maxStockPages);
-		inv.setPag(openPage);
-		inv.open(player);
+		InvStock inv = InvStock.getInvStock(shopId, player);
+		if(inv != null) {
+			inv.setMaxPages(maxStockPages);
+			inv.setPag(openPage);
+			inv.open(player);
+		} else {
+			// Lock message already sent to player
+			InvStock.inShopInv.remove(player);
+			return;
+		}
 	}
 
 	private void reloadShop(Player player) {
@@ -2146,6 +2158,96 @@ public class CommandShop implements CommandExecutor {
 				iShop.config.getString("blacklistList").replaceAll("%items", items)));
 		} else {
 			player.sendMessage(ChatColor.RED + "Usage: /shop blacklist <add/remove/list> [item]");
+		}
+	}
+	
+	private void viewLocks(Player player) {
+		if(!player.hasPermission(Permission.SHOP_ADMIN.toString())) {
+			player.sendMessage(Messages.NO_PERMISSION.toString());
+			return;
+		}
+		
+		player.sendMessage(ChatColor.GOLD + "=== Active Shop Locks ===");
+		
+		// Show stock locks
+		if(!InvStock.stockAccessLock.isEmpty()) {
+			player.sendMessage(ChatColor.YELLOW + "Stock Inventory Locks:");
+			InvStock.stockAccessLock.forEach((shopId, uuid) -> {
+				Player lockedPlayer = Bukkit.getPlayer(uuid);
+				String playerName = lockedPlayer != null ? lockedPlayer.getName() : "Unknown";
+				player.sendMessage(ChatColor.GRAY + "  Shop #" + shopId + " - " + playerName);
+			});
+		}
+		
+		// Show edit locks
+		if(!InvAdminShop.editLocks.isEmpty()) {
+			player.sendMessage(ChatColor.YELLOW + "Shop Edit Locks:");
+			InvAdminShop.editLocks.forEach((shopId, uuid) -> {
+				Player lockedPlayer = Bukkit.getPlayer(uuid);
+				String playerName = lockedPlayer != null ? lockedPlayer.getName() : "Unknown";
+				player.sendMessage(ChatColor.GRAY + "  Shop #" + shopId + " - " + playerName);
+			});
+		}
+		
+		if(InvStock.stockAccessLock.isEmpty() && InvAdminShop.editLocks.isEmpty()) {
+			player.sendMessage(ChatColor.GREEN + "No active locks.");
+		}
+	}
+	
+	private void forceUnlock(Player player, String[] args) {
+		if(!player.hasPermission(Permission.SHOP_ADMIN.toString())) {
+			player.sendMessage(Messages.NO_PERMISSION.toString());
+			return;
+		}
+		
+		if(args.length < 2) {
+			player.sendMessage(ChatColor.RED + "Usage: /shop unlock <shopId>");
+			return;
+		}
+		
+		int shopId;
+		try {
+			shopId = Integer.parseInt(args[1]);
+		} catch(Exception e) {
+			player.sendMessage(Messages.SHOP_ID_INTEGER.toString());
+			return;
+		}
+		
+		Optional<Shop> shop = Shop.getShopById(shopId);
+		if(!shop.isPresent()) {
+			player.sendMessage(Messages.SHOP_NOT_FOUND.toString());
+			return;
+		}
+		
+		// Close all inventories viewing this shop first
+		for(Player onlinePlayer : Bukkit.getOnlinePlayers()) {
+			GUI openGUI = GUI.inventoriesOpen.get(onlinePlayer.getName());
+			
+			if(openGUI instanceof InvStock) {
+				InvStock inv = (InvStock) openGUI;
+				if(inv.getShopId() == shopId) {
+					onlinePlayer.closeInventory();
+					onlinePlayer.sendMessage(ChatColor.YELLOW + "Shop inventory closed by administrator.");
+				}
+			}
+			
+			if(openGUI instanceof InvAdminShop) {
+				InvAdminShop inv = (InvAdminShop) openGUI;
+				if(inv.getShop() != null && inv.getShop().shopId() == shopId) {
+					onlinePlayer.closeInventory();
+					onlinePlayer.sendMessage(ChatColor.YELLOW + "Shop editor closed by administrator.");
+				}
+			}
+		}
+		
+		// Now remove all locks for this shop
+		boolean hadStockLock = InvStock.stockAccessLock.remove(shopId) != null;
+		boolean hadEditLock = InvAdminShop.editLocks.remove(shopId) != null;
+		
+		if(hadStockLock || hadEditLock) {
+			player.sendMessage(ChatColor.GREEN + "Unlocked shop #" + shopId + " and closed all viewers.");
+		} else {
+			player.sendMessage(ChatColor.YELLOW + "Shop #" + shopId + " had no active locks.");
 		}
 	}
 }

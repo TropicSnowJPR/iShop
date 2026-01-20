@@ -320,6 +320,12 @@ lowStockThreshold: 16
 # Bulk buying
 enableBulkBuy: true
 
+# Concurrency & Locking Settings
+enableTradeLocking: true         # Prevent concurrent access to the same trade row (row-level locks)
+enableStockLocking: true          # One user per stock inventory
+enableEditLocking: true           # One editor per shop
+showLockMessages: true            # Show who has the lock
+
 # Messages for new features
 shopTransferUsage: "&cUsage: /shop transfer <shopId> <player>"
 shopTransferred: "&aShop #%id transferred to %player"

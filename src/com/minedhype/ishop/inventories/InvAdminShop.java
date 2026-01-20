@@ -1,6 +1,8 @@
 package com.minedhype.ishop.inventories;
 
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.UUID;
 import com.minedhype.ishop.iShop;
 import com.minedhype.ishop.Messages;
 import com.minedhype.ishop.Permission;
@@ -12,6 +14,7 @@ import org.bukkit.ChatColor;
 import org.bukkit.Material;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.entity.Player;
+import org.bukkit.event.inventory.InventoryCloseEvent;
 import com.minedhype.ishop.gui.GUI;
 
 public class InvAdminShop extends GUI {
@@ -21,10 +24,57 @@ public class InvAdminShop extends GUI {
 	public static boolean usePerms = iShop.config.getBoolean("usePermissions");
 	public static int maxPages = iShop.config.getInt("stockPages");
 	public static int permissionMax = iShop.config.getInt("maxStockPages");
-	private final Shop shop;
+	// Track which player is editing which shop
+	protected static final ConcurrentHashMap<Integer, UUID> editLocks = new ConcurrentHashMap<>();
+	private Shop shop;
+
+	public Shop getShop() {
+		return shop;
+	}
 
 	public InvAdminShop(Shop shop, Player player) {
 		super(54, getShopName(shop));
+		
+		// Check if edit locking is enabled
+		boolean lockingEnabled = iShop.config.getBoolean("enableEditLocking", true);
+		
+		if(lockingEnabled) {
+			final int shopId = shop.shopId();
+			final UUID playerId = player.getUniqueId();
+			final boolean showLockMessages = iShop.config.getBoolean("showLockMessages", true);
+			final boolean[] lockDenied = new boolean[] { false };
+			
+			// Atomically check and acquire/edit lock for this shop
+			editLocks.compute(shopId, (id, currentEditor) -> {
+				// No current editor or same player re-opening: acquire or retain lock
+				if (currentEditor == null || currentEditor.equals(playerId)) {
+					return playerId;
+				}
+				
+				// Different editor currently recorded
+				Player otherEditor = Bukkit.getPlayer(currentEditor);
+				
+				if (otherEditor != null && otherEditor.isOnline()) {
+					// Shop is actually being edited by another online player
+					if (showLockMessages) {
+						player.sendMessage(ChatColor.RED + otherEditor.getName() + " is currently editing this shop.");
+					}
+					player.closeInventory();
+					InvAdminShop.this.shop = null;
+					lockDenied[0] = true;
+					// Keep existing lock with the other editor
+					return currentEditor;
+				}
+				
+				// Other player logged out or is offline, treat lock as stale and transfer it
+				return playerId;
+			});
+			
+			if (lockDenied[0]) {
+				return;
+			}
+		}
+		
 		this.shop = shop;
 		updateItems(player);
 	}
@@ -102,25 +152,27 @@ public class InvAdminShop extends GUI {
 					if(stockGUIShop && !shop.isAdmin() && shop.canManageStock(player.getUniqueId())) {
 						placeItem(y * 9 + x, GUI.createItem(Material.CHEST, Messages.SHOP_TITLE_STOCK.toString()), p -> {
 							p.closeInventory();
-							InvStock inv = InvStock.getInvStock(shop.shopId());
-							int maxStockPages = maxPages;
-							if(usePerms) {
-								String permPrefix = Permission.SHOP_STOCK_PREFIX.toString();
-								int maxPermPages = InvAdminShop.permissionMax;
-								boolean permissionFound = false;
-								for(int i=maxPermPages; i>0; i--)
-									if(player.hasPermission(permPrefix + i)) {
-										maxStockPages = i;
-										permissionFound = true;
-										break;
-									}
-								if(!permissionFound)
-									maxStockPages = maxPermPages;
+							InvStock inv = InvStock.getInvStock(shop.shopId(), p);
+							if(inv != null) {
+								int maxStockPages = maxPages;
+								if(usePerms) {
+									String permPrefix = Permission.SHOP_STOCK_PREFIX.toString();
+									int maxPermPages = InvAdminShop.permissionMax;
+									boolean permissionFound = false;
+									for(int i=maxPermPages; i>0; i--)
+										if(player.hasPermission(permPrefix + i)) {
+											maxStockPages = i;
+											permissionFound = true;
+											break;
+										}
+									if(!permissionFound)
+										maxStockPages = maxPermPages;
+								}
+								inv.setMaxPages(maxStockPages);
+								inv.setPag(0);
+								InvStock.inShopInv.put(player, shop.shopId());
+								inv.open(player);
 							}
-							inv.setMaxPages(maxStockPages);
-							inv.setPag(0);
-							InvStock.inShopInv.put(player, player.getUniqueId());
-							inv.open(player);
 						});
 					} else
 						placeItem(y*9+x, GUI.createItem(Material.BLACK_STAINED_GLASS_PANE, ""));
@@ -165,6 +217,19 @@ public class InvAdminShop extends GUI {
 				} else
 					placeItem(y*9+x, GUI.createItem(Material.BLACK_STAINED_GLASS_PANE, ""));
 			}
+		}
+	}
+	
+	@Override
+	public void onClose(InventoryCloseEvent event) {
+		super.onClose(event);
+		
+		if(shop != null) {
+			// Shop data is saved automatically through the Shop.saveData() mechanism
+			
+			// Release edit lock
+			Player player = (Player) event.getWhoClicked();
+			editLocks.remove(shop.shopId(), player.getUniqueId());
 		}
 	}
 }
