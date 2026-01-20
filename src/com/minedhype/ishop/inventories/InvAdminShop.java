@@ -35,32 +35,40 @@ public class InvAdminShop extends GUI {
 		boolean lockingEnabled = iShop.config.getBoolean("enableEditLocking", true);
 		
 		if(lockingEnabled) {
-			// Check if another player is editing this shop
-			UUID currentEditor = editLocks.get(shop.shopId());
+			final int shopId = shop.shopId();
+			final UUID playerId = player.getUniqueId();
+			final boolean showLockMessages = iShop.config.getBoolean("showLockMessages", true);
+			final boolean[] lockDenied = new boolean[] { false };
 			
-			if(currentEditor != null) {
-				// Check if it's a different player
-				if(!currentEditor.equals(player.getUniqueId())) {
-					// Check if that player still has it open
-					Player otherEditor = Bukkit.getPlayer(currentEditor);
-					
-					if(otherEditor != null && otherEditor.isOnline()) {
-						// Shop is actually being edited
-						if(iShop.config.getBoolean("showLockMessages", true)) {
-							player.sendMessage(ChatColor.RED + otherEditor.getName() + " is currently editing this shop.");
-						}
-						player.closeInventory();
-						this.shop = null;
-						return;
-					} else {
-						// Other player logged out, clear stale lock
-						editLocks.remove(shop.shopId());
-					}
+			// Atomically check and acquire/edit lock for this shop
+			editLocks.compute(shopId, (id, currentEditor) -> {
+				// No current editor or same player re-opening: acquire or retain lock
+				if (currentEditor == null || currentEditor.equals(playerId)) {
+					return playerId;
 				}
-			}
+				
+				// Different editor currently recorded
+				Player otherEditor = Bukkit.getPlayer(currentEditor);
+				
+				if (otherEditor != null && otherEditor.isOnline()) {
+					// Shop is actually being edited by another online player
+					if (showLockMessages) {
+						player.sendMessage(ChatColor.RED + otherEditor.getName() + " is currently editing this shop.");
+					}
+					player.closeInventory();
+					InvAdminShop.this.shop = null;
+					lockDenied[0] = true;
+					// Keep existing lock with the other editor
+					return currentEditor;
+				}
+				
+				// Other player logged out or is offline, treat lock as stale and transfer it
+				return playerId;
+			});
 			
-			// Acquire edit lock for this player
-			editLocks.put(shop.shopId(), player.getUniqueId());
+			if (lockDenied[0]) {
+				return;
+			}
 		}
 		
 		this.shop = shop;
