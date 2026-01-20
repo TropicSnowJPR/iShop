@@ -86,35 +86,22 @@ public class InvBulkBuy extends GUI {
 		
 		// Validate upfront before executing any trades
 		// Check player has enough items
-		int requiredIn = rowData.getItemIn().getAmount() * multiplier;
-		int requiredIn2 = rowData.getItemIn2().getAmount() * multiplier;
-		if(!hasEnoughItems(player, rowData.getItemIn(), requiredIn) || 
-		   !hasEnoughItems(player, rowData.getItemIn2(), requiredIn2)) {
+		if(!hasEnoughPlayerItems(player, rowData.getItemIn(), multiplier) || 
+		   !hasEnoughPlayerItems(player, rowData.getItemIn2(), multiplier)) {
 			player.sendMessage(ChatColor.RED + "You don't have enough items for " + multiplier + " trades!");
 			return;
 		}
 		
 		// Check shop has enough stock
-		int requiredOut = rowData.getItemOut().getAmount() * multiplier;
-		int requiredOut2 = rowData.getItemOut2().getAmount() * multiplier;
-		if(!hasEnoughItems(shop, rowData.getItemOut(), requiredOut) || 
-		   !hasEnoughItems(shop, rowData.getItemOut2(), requiredOut2)) {
+		if(!hasEnoughShopStock(shop, rowData.getItemOut(), multiplier) || 
+		   !hasEnoughShopStock(shop, rowData.getItemOut2(), multiplier)) {
 			player.sendMessage(ChatColor.RED + "Shop doesn't have enough stock for " + multiplier + " trades!");
 			return;
 		}
 		
-		// Check player has enough inventory space
-		int emptySlots = 0;
-		for(ItemStack item : player.getInventory().getStorageContents())
-			if(item == null || item.getType().isAir())
-				emptySlots++;
-		
-		int requiredSlots = 0;
-		if(!rowData.getItemOut().getType().isAir()) requiredSlots++;
-		if(!rowData.getItemOut2().getType().isAir()) requiredSlots++;
-		
-		if(emptySlots < requiredSlots) {
-			player.sendMessage(ChatColor.RED + "Your inventory is full! Need at least " + requiredSlots + " empty slots.");
+		// Check player has enough inventory space (accounting for stackable items)
+		if(!hasEnoughInventorySpace(player, rowData, multiplier)) {
+			player.sendMessage(ChatColor.RED + "Not enough inventory space for " + multiplier + " trades!");
 			return;
 		}
 		
@@ -126,21 +113,87 @@ public class InvBulkBuy extends GUI {
 		player.sendMessage(ChatColor.GREEN + "Successfully completed " + multiplier + " trades!");
 	}
 	
-	private boolean hasEnoughItems(Object source, ItemStack item, int required) {
-		if(item.getType().isAir() || required == 0)
+	private boolean hasEnoughPlayerItems(Player player, ItemStack item, int multiplier) {
+		if(item.getType().isAir() || item.getAmount() == 0)
 			return true;
 		
-		if(source instanceof Player) {
-			Player p = (Player) source;
-			int count = 0;
-			for(ItemStack invItem : p.getInventory().getContents()) {
-				if(invItem != null && invItem.isSimilar(item))
-					count += invItem.getAmount();
-			}
-			return count >= required;
-		} else if(source instanceof Shop) {
-			return Utils.hasStock((Shop) source, item);
+		int required = item.getAmount() * multiplier;
+		ItemStack checkItem = item.clone();
+		checkItem.setAmount(required);
+		
+		return Utils.hasStock(player, checkItem);
+	}
+	
+	private boolean hasEnoughShopStock(Shop shop, ItemStack item, int multiplier) {
+		if(shop.isAdmin() || item.getType().isAir() || item.getAmount() == 0)
+			return true;
+		
+		int required = item.getAmount() * multiplier;
+		ItemStack checkItem = item.clone();
+		checkItem.setAmount(required);
+		
+		return Utils.hasStock(shop, checkItem);
+	}
+	
+	private boolean hasEnoughInventorySpace(Player player, RowStore rowData, int multiplier) {
+		// Calculate how many items will be received
+		int itemsToReceive = 0;
+		if(!rowData.getItemOut().getType().isAir()) itemsToReceive++;
+		if(!rowData.getItemOut2().getType().isAir()) itemsToReceive++;
+		
+		if(itemsToReceive == 0)
+			return true;
+		
+		// Count actual space considering stackable items
+		int availableSpace = 0;
+		ItemStack[] contents = player.getInventory().getStorageContents();
+		
+		// Count empty slots
+		for(ItemStack item : contents) {
+			if(item == null || item.getType().isAir())
+				availableSpace++;
 		}
-		return false;
+		
+		// Count partial stacks that can accept more of the same item
+		if(!rowData.getItemOut().getType().isAir()) {
+			int outAmount = rowData.getItemOut().getAmount() * multiplier;
+			for(ItemStack item : contents) {
+				if(item != null && item.isSimilar(rowData.getItemOut())) {
+					int canFit = item.getMaxStackSize() - item.getAmount();
+					if(canFit > 0) {
+						outAmount -= canFit;
+						if(outAmount <= 0) break;
+					}
+				}
+			}
+			// If still need space after merging with existing stacks
+			if(outAmount > 0) {
+				int slotsNeeded = (int) Math.ceil((double) outAmount / rowData.getItemOut().getMaxStackSize());
+				if(availableSpace < slotsNeeded)
+					return false;
+				availableSpace -= slotsNeeded;
+			}
+		}
+		
+		if(!rowData.getItemOut2().getType().isAir()) {
+			int out2Amount = rowData.getItemOut2().getAmount() * multiplier;
+			for(ItemStack item : contents) {
+				if(item != null && item.isSimilar(rowData.getItemOut2())) {
+					int canFit = item.getMaxStackSize() - item.getAmount();
+					if(canFit > 0) {
+						out2Amount -= canFit;
+						if(out2Amount <= 0) break;
+					}
+				}
+			}
+			// If still need space after merging with existing stacks
+			if(out2Amount > 0) {
+				int slotsNeeded = (int) Math.ceil((double) out2Amount / rowData.getItemOut2().getMaxStackSize());
+				if(availableSpace < slotsNeeded)
+					return false;
+			}
+		}
+		
+		return true;
 	}
 }
