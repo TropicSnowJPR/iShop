@@ -21,15 +21,11 @@ public class Utils {
 	public static boolean hasStock(Shop shop, ItemStack item) {
 		if(shop.isAdmin() || item == null || item.getType().equals(Material.AIR))
 			return true;
-		int max;
-		if(InvAdminShop.usePerms)
-			max = InvAdminShop.permissionMax;
-		else
-			max = InvAdminShop.maxPages;
+		int max = shop.getMaxStockPages();
 		int amount = item.getAmount();
 		int itemAmountCount = 0;
 		for(int i=0; i<max; i++) {
-			Optional<StockShop> stockStore = StockShop.getStockShopByOwner(shop.getOwner(), i);
+			Optional<StockShop> stockStore = StockShop.getStockShopByShopId(shop.shopId(), i);
 			if(!stockStore.isPresent())
 				continue;
 			if(stockStore.get().getInventory().containsAtLeast(item, amount))
@@ -88,13 +84,9 @@ public class Utils {
 		int item2Amount = 0;
 		int item1Total = item.getAmount();
 		int item2Total = item2.getAmount();
-		int max;
-		if(InvAdminShop.usePerms)
-			max = InvAdminShop.permissionMax;
-		else
-			max = InvAdminShop.maxPages;
+		int max = shop.getMaxStockPages();
 		for(int i=0; i<max; i++) {
-			Optional<StockShop> stockStore = StockShop.getStockShopByOwner(shop.getOwner(), i);
+			Optional<StockShop> stockStore = StockShop.getStockShopByShopId(shop.shopId(), i);
 			if(!stockStore.isPresent())
 				continue;
 			if(stockStore.get().getInventory().contains(item.getType()) || stockStore.get().getInventory().contains(item2.getType())) {
@@ -133,14 +125,10 @@ public class Utils {
 	public static boolean hasEnchantment(Shop shop, String bookName, boolean doubleBook) {
 		if(shop.isAdmin())
 			return true;
-		int max;
-		if(InvAdminShop.usePerms)
-			max = InvAdminShop.permissionMax;
-		else
-			max = InvAdminShop.maxPages;
+		int max = shop.getMaxStockPages();
 		int count = 0;
 		for(int i=0; i<max; i++) {
-			Optional<StockShop> stockStore = StockShop.getStockShopByOwner(shop.getOwner(), i);
+			Optional<StockShop> stockStore = StockShop.getStockShopByShopId(shop.shopId(), i);
 			if(!stockStore.isPresent())
 				continue;
 			if(stockStore.get().getInventory().contains(Material.ENCHANTED_BOOK)) {

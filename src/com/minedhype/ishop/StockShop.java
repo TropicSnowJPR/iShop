@@ -12,31 +12,29 @@ import org.bukkit.inventory.Inventory;
 
 public class StockShop {
 	private static final List<StockShop> stocks = new ArrayList<>();
-	private final UUID owner;
+	private final int shopId;
 	private final Inventory inventory;
 	private final int pag;
 
-	public StockShop(UUID owner, int pag) { 
-		String playerName = Bukkit.getOfflinePlayer(owner).getName();
-		if(playerName == null) playerName = "Unknown";
-		this(owner, Bukkit.createInventory(null, 45, ChatColor.GREEN + playerName + "'s shop"), pag); 
+	public StockShop(int shopId, int pag) { 
+		this(shopId, Bukkit.createInventory(null, 45, ChatColor.GREEN + "Shop #" + shopId + " Stock - Page " + (pag + 1)), pag); 
 	}
 
-	public StockShop(UUID owner, Inventory inv, int pag) {
-		this.owner = owner;
+	public StockShop(int shopId, Inventory inv, int pag) {
+		this.shopId = shopId;
 		this.inventory = inv;
 		this.pag = pag;
 		stocks.add(this);
 	}
 
-	public static Optional<StockShop> getStockShopByOwner(UUID owner, int pag) { return stocks.parallelStream().filter(t -> t.owner.equals(owner) && t.pag == pag).findFirst(); }
+	public static Optional<StockShop> getStockShopByShopId(int shopId, int pag) { return stocks.parallelStream().filter(t -> t.shopId == shopId && t.pag == pag).findFirst(); }
 	
 	public static void saveData() {
 		if(!hasStock())
 			return;
 		PreparedStatement stmt = null;
 		try {
-			stmt = iShop.getConnection().prepareStatement("DELETE FROM zooMercaStocks;");
+			stmt = iShop.getConnection().prepareStatement("DELETE FROM shop_stocks;");
 			stmt.execute();
 		} catch (Exception e) { e.printStackTrace(); }
 			finally {
@@ -54,10 +52,10 @@ public class StockShop {
 	private void saveStockData() {
 		PreparedStatement stmt = null;
 		try {
-			stmt = iShop.getConnection().prepareStatement("INSERT INTO zooMercaStocks (owner, itemsNew, pag) VALUES (?,?,?);");
-			stmt.setString(1, owner.toString());
-			stmt.setBytes(2,iShop.encodeByte(inventory.getContents()));
-			stmt.setInt(3, pag);
+			stmt = iShop.getConnection().prepareStatement("INSERT INTO shop_stocks (shop_id, page, items) VALUES (?,?,?);");
+			stmt.setInt(1, shopId);
+			stmt.setInt(2, pag);
+			stmt.setBytes(3,iShop.encodeByte(inventory.getContents()));
 			stmt.execute();
 		} catch (Exception e) { e.printStackTrace(); }
 			finally {
@@ -76,7 +74,7 @@ public class StockShop {
 		for(int i=0; i<45; i++)
 			this.inventory.setItem(i, inventory.getItem(i));
 	}
-	public UUID getOwner() {
-		return owner;
+	public int getShopId() {
+		return shopId;
 	}
 }
