@@ -407,7 +407,7 @@ public class EventShop implements Listener {
 		UUID playerUuid = player.getUniqueId();
 		
 		// Clean up stock inventory tracking
-		InvStock.inShopInv.remove(playerUuid);
+		InvStock.inShopInv.remove(player);
 		
 		// Clean up any other player-specific data
 		// This prevents memory leaks when players disconnect
