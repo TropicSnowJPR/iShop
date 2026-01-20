@@ -168,11 +168,30 @@ public class InvStock extends GUI {
 	
 	@Override
 	public void onClose(InventoryCloseEvent event) {
+		super.onClose(event);
+		
 		Inventory inventory = event.getInventory();
 		Optional<StockShop> stock = StockShop.getStockShopByShopId(shopId, pag);
 		if(!stock.isPresent())
 			return;
 		stock.get().setInventory(inventory);
+		
+		// Save inventory changes
+		refreshItems();
+		
+		// Save stock data immediately (don't wait for auto-save)
+		Bukkit.getScheduler().runTaskAsynchronously(iShop.getPlugin(), () -> {
+			for(int i = 0; i < stockPages; i++) {
+				Optional<StockShop> stockToSave = StockShop.getStockShopByShopId(this.shopId, i);
+				if(stockToSave.isPresent()) {
+					stockToSave.get().saveStockData();
+				}
+			}
+		});
+		
+		// Remove from tracking map
+		Player player = (Player) event.getWhoClicked();
+		inShopInv.remove(player.getUniqueId());
 	}
 	
 	public void setPag(int pag) {

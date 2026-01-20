@@ -1,5 +1,6 @@
 package com.minedhype.ishop;
 
+import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -32,24 +33,50 @@ public class StockShop {
 	public static void saveData() {
 		if(!hasStock())
 			return;
+		
+		Connection conn = iShop.getConnection();
 		PreparedStatement stmt = null;
+		
 		try {
-			stmt = iShop.getConnection().prepareStatement("DELETE FROM shop_stocks;");
+			// Disable auto-commit for transaction
+			conn.setAutoCommit(false);
+			
+			// Delete old data
+			stmt = conn.prepareStatement("DELETE FROM shop_stocks;");
 			stmt.execute();
-		} catch (Exception e) { e.printStackTrace(); }
-			finally {
+			stmt.close();
+			
+			// Insert new data
+			for(StockShop stock : stocks)
+				stock.saveStockData();
+			
+			// Commit transaction - all or nothing
+			conn.commit();
+			
+		} catch (Exception e) {
+			e.printStackTrace();
+			try {
+				// Rollback on error - restore old data
+				conn.rollback();
+				System.err.println("[iShop] Stock save failed, rolled back transaction");
+			} catch (Exception rollbackEx) {
+				rollbackEx.printStackTrace();
+			}
+		} finally {
 			try {
 				if(stmt != null)
 					stmt.close();
-			} catch (Exception e) { e.printStackTrace(); }
+				// Re-enable auto-commit
+				conn.setAutoCommit(true);
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
 		}
-		for(StockShop stock : stocks)
-			stock.saveStockData();
 	}
 	
 	private static boolean hasStock() { return (int) stocks.parallelStream().filter(stock -> Arrays.asList(stock.getInventory().getContents()).parallelStream().anyMatch(item -> item != null && item.getAmount() > 0)).count() > 0; }
 	
-	private void saveStockData() {
+	public void saveStockData() {
 		PreparedStatement stmt = null;
 		try {
 			stmt = iShop.getConnection().prepareStatement("INSERT INTO shop_stocks (shop_id, page, items) VALUES (?,?,?);");

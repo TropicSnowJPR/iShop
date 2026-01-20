@@ -24,6 +24,7 @@ import org.bukkit.event.entity.EntityExplodeEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.EquipmentSlot;
 import java.util.List;
 import java.util.Optional;
@@ -398,6 +399,18 @@ public class EventShop implements Listener {
 				}
 			}, delayTime);
 		}
+	}
+
+	@EventHandler
+	public void onPlayerQuit(PlayerQuitEvent event) {
+		Player player = event.getPlayer();
+		UUID playerUuid = player.getUniqueId();
+		
+		// Clean up stock inventory tracking
+		InvStock.inShopInv.remove(playerUuid);
+		
+		// Clean up any other player-specific data
+		// This prevents memory leaks when players disconnect
 	}
 
 	private boolean checkShopLoc(Location location) {

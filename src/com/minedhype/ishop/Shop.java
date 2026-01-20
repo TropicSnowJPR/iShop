@@ -11,6 +11,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import javax.sql.rowset.serial.SerialBlob;
@@ -59,7 +60,7 @@ public class Shop {
 	public static final ConcurrentHashMap<UUID, ArrayList<String>> shopMessages = new ConcurrentHashMap<>();
 	private static final String EMPTY_ITEM_STRING = "empty x 0";  // Constant for empty item representation
 	private static boolean exemptListInactive;
-	private static final List<Shop> shops = new ArrayList<>();
+	private static final List<Shop> shops = new CopyOnWriteArrayList<>();
 	private static final Plugin plugin = Bukkit.getPluginManager().getPlugin("iShop");
 	private static final long millisecondsPerDay = 86400000;
 	private final ItemStack airItem = new ItemStack(Material.AIR, 0);
@@ -79,38 +80,62 @@ public class Shop {
 		this.admin = admin;
 
 		if(idTienda == -1) {
-			final Shop shop = this;
-			Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
-				PreparedStatement stmt = null;
+			// Do database insert synchronously to get ID immediately
+			PreparedStatement stmt = null;
+			try {
+				stmt = iShop.getConnection().prepareStatement(
+					"INSERT INTO zooMercaTiendas (location, owner, admin) VALUES (?,?,?);",
+					Statement.RETURN_GENERATED_KEYS
+				);
+				String locationRaw = loc.getBlockX()+";"+loc.getBlockY()+";"+loc.getBlockZ()+";"+ loc.getWorld().getName();
+				stmt.setString(1, locationRaw);
+				stmt.setString(2, owner.toString());
+				stmt.setBoolean(3, admin);
+				stmt.executeUpdate();
+				
+				ResultSet res = stmt.getGeneratedKeys();
+				if(res.next())
+					this.idTienda = res.getInt(1);
+					
+			} catch (Exception e) {
+				e.printStackTrace();
+			} finally {
 				try {
-					stmt = iShop.getConnection().prepareStatement("INSERT INTO zooMercaTiendas (location, owner, admin) VALUES (?,?,?);", Statement.RETURN_GENERATED_KEYS);
-					String locationRaw = loc.getBlockX()+";"+loc.getBlockY()+";"+loc.getBlockZ()+";"+ loc.getWorld().getName();
-					stmt.setString(1, locationRaw);
-					stmt.setString(2, owner.toString());
-					stmt.setBoolean(3, admin);
-					stmt.executeUpdate();
-					ResultSet res = stmt.getGeneratedKeys();
-					if(res.next())
-						shop.idTienda = res.getInt(1);
-				} catch (Exception e) { e.printStackTrace(); }
-				finally {
-					try {
-						if(stmt != null)
-							stmt.close();
-					} catch (Exception e) { e.printStackTrace(); }
+					if(stmt != null)
+						stmt.close();
+				} catch (Exception e) {
+					e.printStackTrace();
 				}
-			});
-		} else {
-			// Load members from database for existing shops
-			Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
-				members = ShopMember.loadMembersForShop(idTienda);
-			});
+			}
+		}
+		
+		// Now load members - shop ID is guaranteed to be set
+		if(this.idTienda != -1) {
+			this.members = ShopMember.loadMembersForShop(this.idTienda);
 		}
 	}
 
 	public static Optional<Shop> getShopByLocation(Location location) { return shops.parallelStream().filter(shop -> shop.location.equals(location)).findFirst(); }
 	public static Optional<Shop> getShopById(int id) { return shops.parallelStream().filter(shop -> shop.idTienda == id).findFirst(); }
-	public static boolean checkShopDistanceFromStockBlock(Location stockLocation, UUID shopOwner) { return shops.parallelStream().filter(s -> !s.admin && s.isOwner(shopOwner)).anyMatch(s -> s.getLocation().getWorld().equals(stockLocation.getWorld()) && s.location.distanceSquared(stockLocation) <= EventShop.stockRangeLimit*EventShop.stockRangeLimit); }
+	public static boolean checkShopDistanceFromStockBlock(Location stockLocation, UUID shopOwner) {
+		// Add null checks
+		if(stockLocation == null || stockLocation.getWorld() == null) {
+			return false;
+		}
+		
+		return shops.parallelStream()
+			.filter(s -> !s.admin && s.isOwner(shopOwner))
+			.anyMatch(s -> {
+				// Check world first to prevent cross-world distance calculation
+				if(s.getLocation() == null || s.getLocation().getWorld() == null) {
+					return false;
+				}
+				if(!s.getLocation().getWorld().equals(stockLocation.getWorld())) {
+					return false;
+				}
+				return s.location.distanceSquared(stockLocation) <= EventShop.stockRangeLimit * EventShop.stockRangeLimit;
+			});
+	}
 	public static int getNumShops(UUID owner) { return (int) shops.parallelStream().filter(t -> !t.admin && t.owner.equals(owner)).count(); }
 
 	public static boolean strictStockShopCheck(ItemStack item, UUID uuid) {
@@ -1089,13 +1114,13 @@ public class Shop {
 			outA2 = row.get().getItemOut2().getAmount();
 		} catch(Exception e) { nameOut2 = "empty"; outA2 = 0; }
 		if(!this.admin) {
-			if(row.get().getItemOut() != null || !row.get().getItemOut().getType().isAir())
+			if(row.get().getItemOut() != null && !row.get().getItemOut().getType().isAir())
 				this.takeItem(row.get().getItemOut().clone());
-			if(row.get().getItemOut2() != null || !row.get().getItemOut2().getType().isAir())
+			if(row.get().getItemOut2() != null && !row.get().getItemOut2().getType().isAir())
 				this.takeItem(row.get().getItemOut2().clone());
-			if(row.get().getItemIn() != null || !row.get().getItemIn().getType().isAir())
+			if(row.get().getItemIn() != null && !row.get().getItemIn().getType().isAir())
 				this.giveItem(row.get().getItemIn().clone());
-			if(row.get().getItemIn2() != null || !row.get().getItemIn2().getType().isAir())
+			if(row.get().getItemIn2() != null && !row.get().getItemIn2().getType().isAir())
 				this.giveItem(row.get().getItemIn2().clone());
 		}
 		final Player shoppingPlayer = player;
@@ -1201,6 +1226,22 @@ public class Shop {
 		deleteShop(true);
 	}
 	public void deleteShop(boolean removalOfArray) {
+		// Close all open inventories for this shop
+		for(Player onlinePlayer : Bukkit.getOnlinePlayers()) {
+			if(onlinePlayer.getOpenInventory() != null && 
+			   onlinePlayer.getOpenInventory().getTopInventory().getHolder() instanceof InvShop) {
+				InvShop inv = (InvShop) onlinePlayer.getOpenInventory().getTopInventory().getHolder();
+				// Close if viewing this shop
+				onlinePlayer.closeInventory();
+			}
+			if(onlinePlayer.getOpenInventory() != null && 
+			   onlinePlayer.getOpenInventory().getTopInventory().getHolder() instanceof InvAdminShop) {
+				InvAdminShop inv = (InvAdminShop) onlinePlayer.getOpenInventory().getTopInventory().getHolder();
+				// Close if editing this shop
+				onlinePlayer.closeInventory();
+			}
+		}
+		
 		if(removalOfArray) {
 			shops.remove(this);
 			if(deletePlayerShop)
@@ -1212,9 +1253,7 @@ public class Shop {
 			PreparedStatement stmt3 = null;
 			try {
 				// Remove all members
-				stmt3 = iShop.getConnection().prepareStatement("DELETE FROM shop_members WHERE shop_id = ?;");
-				stmt3.setInt(1, idTienda);
-				stmt3.execute();
+				ShopMember.deleteAllMembersForShop(this.idTienda);
 				
 				stmt1 = iShop.getConnection().prepareStatement("DELETE FROM zooMercaTiendasFilas WHERE idTienda = ?;");
 				stmt1.setInt(1, idTienda);
