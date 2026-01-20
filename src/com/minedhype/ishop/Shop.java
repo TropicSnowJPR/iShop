@@ -68,6 +68,7 @@ public class Shop {
 	private final RowStore[] rows;
 	private final boolean admin;
 	private int idTienda;
+	private List<ShopMember> members = new ArrayList<>();
 
 	private Shop(int idTienda, UUID owner, Location loc, boolean admin) {
 		this.idTienda = idTienda;
@@ -97,6 +98,11 @@ public class Shop {
 							stmt.close();
 					} catch (Exception e) { e.printStackTrace(); }
 				}
+			});
+		} else {
+			// Load members from database for existing shops
+			Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+				members = ShopMember.loadMembersForShop(idTienda);
 			});
 		}
 	}
@@ -599,9 +605,12 @@ public class Shop {
 		Shop shop = new Shop(-1, owner, loc, admin);
 		shops.add(shop);
 		
-		// Wait for shop ID to be assigned, then create default stock pages
+		// Wait for shop ID to be assigned, then create default stock pages and add owner
 		Bukkit.getScheduler().runTaskLater(plugin, () -> {
 			if(shop.idTienda > 0) {
+				// Add owner as OWNER role
+				shop.addMember(owner, ShopMember.MemberRole.OWNER);
+				
 				int defaultPages = iShop.config.getInt("stockPagesPerShop", 2);
 				for(int i = 0; i < defaultPages; i++) {
 					Optional<StockShop> existingStock = StockShop.getStockShopByShopId(shop.idTienda, i);
@@ -1178,7 +1187,13 @@ public class Shop {
 		Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
 			PreparedStatement stmt1 = null;
 			PreparedStatement stmt2 = null;
+			PreparedStatement stmt3 = null;
 			try {
+				// Remove all members
+				stmt3 = iShop.getConnection().prepareStatement("DELETE FROM shop_members WHERE shop_id = ?;");
+				stmt3.setInt(1, idTienda);
+				stmt3.execute();
+				
 				stmt1 = iShop.getConnection().prepareStatement("DELETE FROM zooMercaTiendasFilas WHERE idTienda = ?;");
 				stmt1.setInt(1, idTienda);
 				stmt1.execute();
@@ -1192,6 +1207,8 @@ public class Shop {
 						stmt1.close();
 					if(stmt2 != null)
 						stmt2.close();
+					if(stmt3 != null)
+						stmt3.close();
 				} catch (Exception e) { e.printStackTrace(); }
 			}
 		});
@@ -1564,7 +1581,79 @@ public class Shop {
 	}
 
 	public RowStore[] getRows() { return rows; }
-	public boolean isOwner(UUID owner) { return this.owner.equals(owner); }
+	
+	// Permission check methods
+	public boolean isOwner(UUID uuid) {
+		// Check if this is a member with OWNER role
+		if(members.stream().anyMatch(m -> m.getPlayerUuid().equals(uuid) && m.getRole() == ShopMember.MemberRole.OWNER))
+			return true;
+		// Fallback to old owner field for compatibility
+		return this.owner.equals(uuid);
+	}
+	
+	public boolean isCoOwner(UUID uuid) {
+		return members.stream().anyMatch(m -> 
+			m.getPlayerUuid().equals(uuid) && m.getRole() == ShopMember.MemberRole.CO_OWNER
+		);
+	}
+	
+	public boolean isManager(UUID uuid) {
+		return members.stream().anyMatch(m -> 
+			m.getPlayerUuid().equals(uuid) && m.getRole() == ShopMember.MemberRole.MANAGER
+		);
+	}
+	
+	public boolean isMember(UUID uuid) {
+		return members.stream().anyMatch(m -> m.getPlayerUuid().equals(uuid));
+	}
+	
+	public boolean canManageStock(UUID uuid) {
+		return isOwner(uuid) || isCoOwner(uuid) || isManager(uuid);
+	}
+	
+	public boolean canEditTrades(UUID uuid) {
+		return isOwner(uuid) || isCoOwner(uuid);
+	}
+	
+	public boolean canManageMembers(UUID uuid) {
+		return isOwner(uuid) || isCoOwner(uuid);
+	}
+	
+	public boolean canDeleteShop(UUID uuid) {
+		return isOwner(uuid);
+	}
+	
+	// Member management methods
+	public void addMember(UUID uuid, ShopMember.MemberRole role) {
+		ShopMember member = new ShopMember(this.idTienda, uuid, role, System.currentTimeMillis());
+		members.add(member);
+		member.save();
+	}
+	
+	public void removeMember(UUID uuid) {
+		ShopMember member = members.stream()
+			.filter(m -> m.getPlayerUuid().equals(uuid))
+			.findFirst()
+			.orElse(null);
+		
+		if(member != null) {
+			members.remove(member);
+			member.delete();
+		}
+	}
+	
+	public List<ShopMember> getMembers() {
+		return new ArrayList<>(members);
+	}
+	
+	public ShopMember.MemberRole getMemberRole(UUID uuid) {
+		return members.stream()
+			.filter(m -> m.getPlayerUuid().equals(uuid))
+			.map(ShopMember::getRole)
+			.findFirst()
+			.orElse(null);
+	}
+	
 	public boolean isAdmin() { return this.admin; }
 	public UUID getOwner() { return owner; }
 	public int shopId() { return this.idTienda; }

@@ -102,6 +102,19 @@ public class iShop extends JavaPlugin {
 			});
 		}
 		
+		// Migrate existing shop owners to members table
+		if(!config.getBoolean("membersMigrationComplete", false)) {
+			Bukkit.getScheduler().runTaskLaterAsynchronously(this, () -> {
+				migrateOwnersToMembers();
+				config.set("membersMigrationComplete", true);
+				try {
+					config.save(configFile);
+				} catch(IOException e) {
+					e.printStackTrace();
+				}
+			}, 40L);
+		}
+		
 		int delayTime;
 		int saveDatabaseTime;
 		try {
@@ -191,7 +204,8 @@ public class iShop extends JavaPlugin {
 					connection.prepareStatement("CREATE TABLE IF NOT EXISTS zooMercaTiendas(id INTEGER PRIMARY KEY autoincrement, location varchar(64), owner varchar(64));"),
 					connection.prepareStatement("CREATE TABLE IF NOT EXISTS zooMercaTiendasFilas(itemInNew blob, itemIn2New blob, itemOutNew blob, itemOut2New blob, idTienda INTEGER);"),
 					connection.prepareStatement("CREATE TABLE IF NOT EXISTS zooMercaStocks(owner varchar(64), itemsNew blob);"),
-					connection.prepareStatement("CREATE TABLE IF NOT EXISTS shop_stocks(shop_id INTEGER NOT NULL, page INTEGER NOT NULL, items BLOB, PRIMARY KEY (shop_id, page));")
+					connection.prepareStatement("CREATE TABLE IF NOT EXISTS shop_stocks(shop_id INTEGER NOT NULL, page INTEGER NOT NULL, items BLOB, PRIMARY KEY (shop_id, page));"),
+					connection.prepareStatement("CREATE TABLE IF NOT EXISTS shop_members(shop_id INTEGER NOT NULL, player_uuid TEXT NOT NULL, role TEXT NOT NULL, added_date INTEGER NOT NULL, PRIMARY KEY (shop_id, player_uuid));")
 			};
 		} catch(Exception e) { e.printStackTrace(); }
 		for(PreparedStatement stmt : stmts) {
@@ -550,6 +564,40 @@ public class iShop extends JavaPlugin {
 		StockData(byte[] items, int page) {
 			this.items = items;
 			this.page = page;
+		}
+	}
+	
+	private void migrateOwnersToMembers() {
+		getLogger().info("Migrating shop owners to members table...");
+		
+		try {
+			PreparedStatement getShops = connection.prepareStatement(
+				"SELECT id, owner FROM zooMercaTiendas;"
+			);
+			ResultSet rs = getShops.executeQuery();
+			
+			int migratedCount = 0;
+			while(rs.next()) {
+				int shopId = rs.getInt("id");
+				String ownerUuid = rs.getString("owner");
+				
+				PreparedStatement insert = connection.prepareStatement(
+					"INSERT OR IGNORE INTO shop_members (shop_id, player_uuid, role, added_date) VALUES (?, ?, 'OWNER', ?);"
+				);
+				insert.setInt(1, shopId);
+				insert.setString(2, ownerUuid);
+				insert.setLong(3, System.currentTimeMillis());
+				insert.execute();
+				insert.close();
+				
+				migratedCount++;
+			}
+			
+			getLogger().info("Migrated " + migratedCount + " shop owners to members table.");
+			
+		} catch(Exception e) {
+			getLogger().severe("Error during members migration: " + e.getMessage());
+			e.printStackTrace();
 		}
 	}
 	
