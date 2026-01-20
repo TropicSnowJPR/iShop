@@ -995,18 +995,18 @@ public class Shop {
 			
 			try {
 				// Execute trade with lock held
-				executeTradeLogic(player, index);
+				executeTradeWithoutLock(player, index);
 			} finally {
 				// ALWAYS release lock, even if exception occurs
 				rowLock.set(false);
 			}
 		} else {
 			// Locking disabled, execute directly
-			executeTradeLogic(player, index);
+			executeTradeWithoutLock(player, index);
 		}
 	}
 	
-	private void executeTradeLogic(Player player, int index) {
+	private void executeTradeWithoutLock(Player player, int index) {
 		Optional<RowStore> row = getRow(index);
 		if(!row.isPresent())
 			return;
