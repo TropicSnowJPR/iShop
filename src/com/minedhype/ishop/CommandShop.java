@@ -1,6 +1,7 @@
 package com.minedhype.ishop;
 
 import java.net.URL;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -148,6 +149,18 @@ public class CommandShop implements CommandExecutor {
 			Bukkit.getServer().getScheduler().runTaskAsynchronously(iShop.getPlugin(), () -> stockShop(player, args[1], args.length >= 3 ? args[2] : "1"));
 		else if(args[0].equalsIgnoreCase("view") && args.length >= 2)
 			viewShop(player, args[1]);
+		else if(args[0].equalsIgnoreCase("addowner") && args.length >= 3)
+			Bukkit.getServer().getScheduler().runTaskAsynchronously(iShop.getPlugin(), () -> addCoOwner(player, args));
+		else if(args[0].equalsIgnoreCase("removeowner") && args.length >= 3)
+			Bukkit.getServer().getScheduler().runTaskAsynchronously(iShop.getPlugin(), () -> removeCoOwner(player, args));
+		else if(args[0].equalsIgnoreCase("addmanager") && args.length >= 3)
+			Bukkit.getServer().getScheduler().runTaskAsynchronously(iShop.getPlugin(), () -> addManager(player, args));
+		else if(args[0].equalsIgnoreCase("removemanager") && args.length >= 3)
+			Bukkit.getServer().getScheduler().runTaskAsynchronously(iShop.getPlugin(), () -> removeManager(player, args));
+		else if(args[0].equalsIgnoreCase("members") && args.length >= 2)
+			Bukkit.getServer().getScheduler().runTaskAsynchronously(iShop.getPlugin(), () -> listMembers(player, args));
+		else if(args[0].equalsIgnoreCase("leave") && args.length >= 2)
+			Bukkit.getServer().getScheduler().runTaskAsynchronously(iShop.getPlugin(), () -> leaveShop(player, args));
 		else
 			Bukkit.getServer().getScheduler().runTaskAsynchronously(iShop.getPlugin(), () -> listSubCmd(player, label));
 
@@ -1682,5 +1695,292 @@ public class CommandShop implements CommandExecutor {
 		}
 		player.sendMessage(Messages.SHOP_LIST_OUT.toString());
 		Shop.getOutOfStock(player, sOwner, playerName);
+	}
+
+	private void addCoOwner(Player player, String[] args) {
+		if(args.length < 3) {
+			player.sendMessage(Messages.SHOP_ADDOWNER_USAGE.toString());
+			return;
+		}
+		int shopId;
+		try {
+			shopId = Integer.parseInt(args[1]);
+		} catch(Exception e) {
+			player.sendMessage(Messages.SHOP_ID_INTEGER.toString());
+			return;
+		}
+		Optional<Shop> shop = Shop.getShopById(shopId);
+		if(!shop.isPresent()) {
+			player.sendMessage(Messages.SHOP_NOT_FOUND.toString());
+			return;
+		}
+		if(!shop.get().canManageMembers(player.getUniqueId()) && !player.hasPermission(Permission.SHOP_ADMIN.toString())) {
+			player.sendMessage(Messages.SHOP_NO_SELF.toString());
+			return;
+		}
+		UUID targetUuid;
+		String targetName = args[2];
+		Player targetPlayer = Bukkit.getPlayer(targetName);
+		if(targetPlayer != null && targetPlayer.isOnline())
+			targetUuid = targetPlayer.getUniqueId();
+		else {
+			try {
+				targetUuid = getUUID(targetName);
+			} catch(Exception e) {
+				UUID foundPlayerUUID = null;
+				boolean foundPlayer = false;
+				for(OfflinePlayer offlinePlayers : Bukkit.getOfflinePlayers())
+					if(offlinePlayers.getName() != null && offlinePlayers.getName().equalsIgnoreCase(targetName)) {
+						foundPlayerUUID = offlinePlayers.getUniqueId();
+						foundPlayer = true;
+						break;
+					}
+				if(!foundPlayer) {
+					player.sendMessage(Messages.NO_PLAYER_FOUND.toString());
+					return;
+				}
+				targetUuid = foundPlayerUUID;
+			}
+		}
+		if(shop.get().isMember(targetUuid)) {
+			player.sendMessage(Messages.SHOP_ALREADY_MEMBER.toString());
+			return;
+		}
+		shop.get().addMember(targetUuid, ShopMember.MemberRole.CO_OWNER);
+		player.sendMessage(Messages.SHOP_ADDOWNER.toString().replaceAll("%p", targetName));
+		if(targetPlayer != null && targetPlayer.isOnline())
+			targetPlayer.sendMessage(Messages.SHOP_ADDOWNER_TARGET.toString().replaceAll("%id", String.valueOf(shopId)));
+	}
+
+	private void removeCoOwner(Player player, String[] args) {
+		if(args.length < 3) {
+			player.sendMessage(Messages.SHOP_REMOVEOWNER_USAGE.toString());
+			return;
+		}
+		int shopId;
+		try {
+			shopId = Integer.parseInt(args[1]);
+		} catch(Exception e) {
+			player.sendMessage(Messages.SHOP_ID_INTEGER.toString());
+			return;
+		}
+		Optional<Shop> shop = Shop.getShopById(shopId);
+		if(!shop.isPresent()) {
+			player.sendMessage(Messages.SHOP_NOT_FOUND.toString());
+			return;
+		}
+		if(!shop.get().canManageMembers(player.getUniqueId()) && !player.hasPermission(Permission.SHOP_ADMIN.toString())) {
+			player.sendMessage(Messages.SHOP_NO_SELF.toString());
+			return;
+		}
+		UUID targetUuid;
+		String targetName = args[2];
+		Player targetPlayer = Bukkit.getPlayer(targetName);
+		if(targetPlayer != null && targetPlayer.isOnline())
+			targetUuid = targetPlayer.getUniqueId();
+		else {
+			try {
+				targetUuid = getUUID(targetName);
+			} catch(Exception e) {
+				UUID foundPlayerUUID = null;
+				boolean foundPlayer = false;
+				for(OfflinePlayer offlinePlayers : Bukkit.getOfflinePlayers())
+					if(offlinePlayers.getName() != null && offlinePlayers.getName().equalsIgnoreCase(targetName)) {
+						foundPlayerUUID = offlinePlayers.getUniqueId();
+						foundPlayer = true;
+						break;
+					}
+				if(!foundPlayer) {
+					player.sendMessage(Messages.NO_PLAYER_FOUND.toString());
+					return;
+				}
+				targetUuid = foundPlayerUUID;
+			}
+		}
+		if(!shop.get().isCoOwner(targetUuid)) {
+			player.sendMessage(Messages.SHOP_NOT_COOWNER.toString());
+			return;
+		}
+		shop.get().removeMember(targetUuid);
+		player.sendMessage(Messages.SHOP_REMOVEOWNER.toString().replaceAll("%p", targetName));
+	}
+
+	private void addManager(Player player, String[] args) {
+		if(args.length < 3) {
+			player.sendMessage(Messages.SHOP_ADDMANAGER_USAGE.toString());
+			return;
+		}
+		int shopId;
+		try {
+			shopId = Integer.parseInt(args[1]);
+		} catch(Exception e) {
+			player.sendMessage(Messages.SHOP_ID_INTEGER.toString());
+			return;
+		}
+		Optional<Shop> shop = Shop.getShopById(shopId);
+		if(!shop.isPresent()) {
+			player.sendMessage(Messages.SHOP_NOT_FOUND.toString());
+			return;
+		}
+		if(!shop.get().canManageMembers(player.getUniqueId()) && !player.hasPermission(Permission.SHOP_ADMIN.toString())) {
+			player.sendMessage(Messages.SHOP_NO_SELF.toString());
+			return;
+		}
+		UUID targetUuid;
+		String targetName = args[2];
+		Player targetPlayer = Bukkit.getPlayer(targetName);
+		if(targetPlayer != null && targetPlayer.isOnline())
+			targetUuid = targetPlayer.getUniqueId();
+		else {
+			try {
+				targetUuid = getUUID(targetName);
+			} catch(Exception e) {
+				UUID foundPlayerUUID = null;
+				boolean foundPlayer = false;
+				for(OfflinePlayer offlinePlayers : Bukkit.getOfflinePlayers())
+					if(offlinePlayers.getName() != null && offlinePlayers.getName().equalsIgnoreCase(targetName)) {
+						foundPlayerUUID = offlinePlayers.getUniqueId();
+						foundPlayer = true;
+						break;
+					}
+				if(!foundPlayer) {
+					player.sendMessage(Messages.NO_PLAYER_FOUND.toString());
+					return;
+				}
+				targetUuid = foundPlayerUUID;
+			}
+		}
+		if(shop.get().isMember(targetUuid)) {
+			player.sendMessage(Messages.SHOP_ALREADY_MEMBER.toString());
+			return;
+		}
+		shop.get().addMember(targetUuid, ShopMember.MemberRole.MANAGER);
+		player.sendMessage(Messages.SHOP_ADDMANAGER.toString().replaceAll("%p", targetName));
+		if(targetPlayer != null && targetPlayer.isOnline())
+			targetPlayer.sendMessage(Messages.SHOP_ADDMANAGER_TARGET.toString().replaceAll("%id", String.valueOf(shopId)));
+	}
+
+	private void removeManager(Player player, String[] args) {
+		if(args.length < 3) {
+			player.sendMessage(Messages.SHOP_REMOVEMANAGER_USAGE.toString());
+			return;
+		}
+		int shopId;
+		try {
+			shopId = Integer.parseInt(args[1]);
+		} catch(Exception e) {
+			player.sendMessage(Messages.SHOP_ID_INTEGER.toString());
+			return;
+		}
+		Optional<Shop> shop = Shop.getShopById(shopId);
+		if(!shop.isPresent()) {
+			player.sendMessage(Messages.SHOP_NOT_FOUND.toString());
+			return;
+		}
+		if(!shop.get().canManageMembers(player.getUniqueId()) && !player.hasPermission(Permission.SHOP_ADMIN.toString())) {
+			player.sendMessage(Messages.SHOP_NO_SELF.toString());
+			return;
+		}
+		UUID targetUuid;
+		String targetName = args[2];
+		Player targetPlayer = Bukkit.getPlayer(targetName);
+		if(targetPlayer != null && targetPlayer.isOnline())
+			targetUuid = targetPlayer.getUniqueId();
+		else {
+			try {
+				targetUuid = getUUID(targetName);
+			} catch(Exception e) {
+				UUID foundPlayerUUID = null;
+				boolean foundPlayer = false;
+				for(OfflinePlayer offlinePlayers : Bukkit.getOfflinePlayers())
+					if(offlinePlayers.getName() != null && offlinePlayers.getName().equalsIgnoreCase(targetName)) {
+						foundPlayerUUID = offlinePlayers.getUniqueId();
+						foundPlayer = true;
+						break;
+					}
+				if(!foundPlayer) {
+					player.sendMessage(Messages.NO_PLAYER_FOUND.toString());
+					return;
+				}
+				targetUuid = foundPlayerUUID;
+			}
+		}
+		if(!shop.get().isManager(targetUuid)) {
+			player.sendMessage(Messages.SHOP_NOT_MANAGER.toString());
+			return;
+		}
+		shop.get().removeMember(targetUuid);
+		player.sendMessage(Messages.SHOP_REMOVEMANAGER.toString().replaceAll("%p", targetName));
+	}
+
+	private void listMembers(Player player, String[] args) {
+		if(args.length < 2) {
+			player.sendMessage(Messages.SHOP_MEMBERS_USAGE.toString());
+			return;
+		}
+		int shopId;
+		try {
+			shopId = Integer.parseInt(args[1]);
+		} catch(Exception e) {
+			player.sendMessage(Messages.SHOP_ID_INTEGER.toString());
+			return;
+		}
+		Optional<Shop> shop = Shop.getShopById(shopId);
+		if(!shop.isPresent()) {
+			player.sendMessage(Messages.SHOP_NOT_FOUND.toString());
+			return;
+		}
+		if(!shop.get().isMember(player.getUniqueId()) && !player.hasPermission(Permission.SHOP_ADMIN.toString())) {
+			player.sendMessage(Messages.SHOP_NO_SELF.toString());
+			return;
+		}
+		List<ShopMember> members = ShopMember.loadMembersForShop(shopId);
+		player.sendMessage(Messages.SHOP_MEMBERSLIST.toString().replaceAll("%id", String.valueOf(shopId)));
+		OfflinePlayer ownerPlayer = Bukkit.getOfflinePlayer(shop.get().getOwner());
+		String ownerName = ownerPlayer.getName() != null ? ownerPlayer.getName() : "Unknown";
+		player.sendMessage(Messages.SHOP_MEMBERS_OWNER.toString().replaceAll("%p", ownerName));
+		List<String> coOwners = new ArrayList<>();
+		List<String> managers = new ArrayList<>();
+		for(ShopMember member : members) {
+			OfflinePlayer memberPlayer = Bukkit.getOfflinePlayer(member.getPlayerUuid());
+			String memberName = memberPlayer.getName() != null ? memberPlayer.getName() : "Unknown";
+			if(member.getRole() == ShopMember.MemberRole.CO_OWNER)
+				coOwners.add(memberName);
+			else if(member.getRole() == ShopMember.MemberRole.MANAGER)
+				managers.add(memberName);
+		}
+		if(!coOwners.isEmpty())
+			player.sendMessage(Messages.SHOP_MEMBERS_COOWNERS.toString().replaceAll("%list", String.join(", ", coOwners)));
+		if(!managers.isEmpty())
+			player.sendMessage(Messages.SHOP_MEMBERS_MANAGERS.toString().replaceAll("%list", String.join(", ", managers)));
+	}
+
+	private void leaveShop(Player player, String[] args) {
+		if(args.length < 2) {
+			player.sendMessage(Messages.SHOP_LEAVE_USAGE.toString());
+			return;
+		}
+		int shopId;
+		try {
+			shopId = Integer.parseInt(args[1]);
+		} catch(Exception e) {
+			player.sendMessage(Messages.SHOP_ID_INTEGER.toString());
+			return;
+		}
+		Optional<Shop> shop = Shop.getShopById(shopId);
+		if(!shop.isPresent()) {
+			player.sendMessage(Messages.SHOP_NOT_FOUND.toString());
+			return;
+		}
+		if(shop.get().isOwner(player.getUniqueId())) {
+			player.sendMessage(Messages.SHOP_CANNOT_LEAVE_OWNER.toString());
+			return;
+		}
+		if(!shop.get().isMember(player.getUniqueId())) {
+			player.sendMessage(Messages.SHOP_NOT_MEMBER.toString());
+			return;
+		}
+		shop.get().removeMember(player.getUniqueId());
+		player.sendMessage(Messages.SHOP_LEFT.toString().replaceAll("%id", String.valueOf(shopId)));
 	}
 }
